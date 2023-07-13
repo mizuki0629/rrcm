@@ -7,7 +7,6 @@ use std::fs;
 use std::fs::DirEntry;
 use std::path;
 use std::path::Path;
-use std::path::PathBuf;
 // 存在するか       Y Y Y N
 // Link             Y Y N /
 // Link先が正しいか Y N / /
@@ -22,26 +21,43 @@ fn create_filemap(path: &path::Path) -> anyhow::Result<HashMap<OsString, DirEntr
     anyhow::Ok(dst)
 }
 
-fn is_managed(src: Option<&DirEntry>, dst: Option<&DirEntry>) -> bool {
-    let mut is_managed = false;
+#[derive(Debug,PartialEq,Eq)]
+enum Status {
+    Managed,
+    Deployed,
+    Conflict,
+    UnManaged,
+}
+
+fn status(src: Option<&DirEntry>, dst: Option<&DirEntry>) -> Status {
+    let mut s = Status::UnManaged;
     if let Some(src_entry) = src {
         if let Some(dst_entry) = dst {
+            s = Status::Conflict;
             if let Ok(file_type) = dst_entry.file_type() {
                 if file_type.is_symlink() {
-                    is_managed = src_entry.path() == fs::read_link(dst_entry.path()).unwrap();
+                    if src_entry.path() == fs::read_link(dst_entry.path()).unwrap() {
+                        s = Status::Deployed;
+                    }
                 }
             }
+        } else {
+            s = Status::Managed;
         }
     }
-    is_managed
+    s
+}
+
+fn manage(src: &Path, dst_dir: &Path) -> anyhow::Result<()> {
+    let dst = Path::new(dst_dir).join(src.file_name().unwrap());
+    std::fs::rename(src, dst)?;
+    Ok(())
 }
 
 #[cfg(target_family = "unix")]
-fn deploy(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    let mut link = PathBuf::new();
-    link.push(dst);
-    link.set_file_name(src.file_name().unwrap());
-    std::os::unix::fs::symlink(src, link)?;
+fn deploy(src: &Path, dst_dir: &Path) -> anyhow::Result<()> {
+    let dst = Path::new(dst_dir).join(src.file_name().unwrap());
+    std::os::unix::fs::symlink(src, dst)?;
     Ok(())
 }
 
@@ -62,10 +78,10 @@ fn main() -> anyhow::Result<()> {
     for key in filelist {
         let src = dotfiles.get(*key);
         let dst = config_dir_files.get(*key);
-        let is_managed = is_managed(src, dst);
+        let s = status(src, dst);
         println!(
-            "{:} {:?} {:?}",
-            if is_managed { "*" } else { " " },
+            "{:?} {:?} {:?}",
+            s,
             if let Some(entry) = src {
                 entry.file_name()
             } else {
