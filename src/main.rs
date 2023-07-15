@@ -63,6 +63,16 @@ where
     return Ok(());
 }
 
+#[cfg(target_os = "windows")]
+fn symlink<P, Q>(from: P, to: Q) -> anyhow::Result<()>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    std::os::windows::fs::symlink(from, to)?;
+    return Ok(());
+}
+
 fn deploy<P>(path: P, targets: Vec<Target>) -> anyhow::Result<()>
 where
     P: AsRef<Path>,
@@ -71,7 +81,7 @@ where
     let canonicalized_path = path.canonicalize()?;
     for target in targets {
         if target.from == canonicalized_path.parent().unwrap() {
-            std::os::unix::fs::symlink(path, target.to.join(path.file_name().unwrap()))?;
+            symlink(path, target.to.join(path.file_name().unwrap()))?;
             return Ok(());
         }
     }
@@ -273,7 +283,11 @@ enum SubCommands {
         path: PathBuf,
     },
     /// Deploy config file
-    Deploy,
+    Deploy {
+        /// file or directory path
+        #[clap(required = true, ignore_case = true)]
+        path: PathBuf,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -289,12 +303,9 @@ fn main() -> anyhow::Result<()> {
             let targets = get_targets();
             add(path.as_path(), targets)
         }
-        SubCommands::Deploy => {
-            // let targets = get_targets();
-            // let path = Path::new("/home/mizuki/dotfiles/config/rrcm");
-            // deploy(path, targets)?;
-            println!("{:?}", args.subcommand);
-            anyhow::Ok(())
+        SubCommands::Deploy { path } => {
+            let targets = get_targets();
+            deploy(path.as_path(), targets)
         }
     }
 }
