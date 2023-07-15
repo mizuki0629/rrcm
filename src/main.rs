@@ -11,6 +11,7 @@ use std::fs::DirEntry;
 use std::path;
 use std::path::Path;
 use std::path::PathBuf;
+use dunce::simplified;
 
 // 存在するか       Y Y Y N
 // Link             Y Y N /
@@ -53,6 +54,22 @@ fn get_status(src: Option<&DirEntry>, dst: Option<&DirEntry>) -> Status {
     s
 }
 
+#[cfg(target_os = "windows")]
+fn canonicalize<P>(path: P) -> anyhow::Result<PathBuf>
+where
+    P: AsRef<Path>,
+{
+    return Ok(simplified(fs::canonicalize(path)?.as_path()).to_path_buf());
+}
+
+#[cfg(target_family = "unix")]
+fn canonicalize<P>(path: P) -> anyhow::Result<PathBuf>
+where
+    P: AsRef<Path>,
+{
+    return Ok(fs::canonicalize(path)?);
+}
+
 #[cfg(target_family = "unix")]
 fn symlink<P, Q>(from: P, to: Q) -> anyhow::Result<()>
 where
@@ -89,7 +106,7 @@ where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let canonicalized_path = path.canonicalize()?;
+    let canonicalized_path = canonicalize(path)?;
     for target in targets {
         if target.from == canonicalized_path.parent().unwrap() {
             symlink(path, target.to.join(path.file_name().unwrap()))?;
@@ -107,7 +124,7 @@ where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let canonicalized_path = path.canonicalize()?;
+    let canonicalized_path = canonicalize(path)?;
     for target in targets {
         if target.to == canonicalized_path.parent().unwrap() {
             let manage_path = target.from.join(path.file_name().unwrap());
@@ -236,7 +253,7 @@ where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let canonicalized_path = path.canonicalize()?;
+    let canonicalized_path = canonicalize(path)?;
     for target in targets {
         if target.to == canonicalized_path || target.from == canonicalized_path {
             let from_files = create_filemap(&target.from)?;
