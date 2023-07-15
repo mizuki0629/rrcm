@@ -69,8 +69,19 @@ where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    std::os::windows::fs::symlink(from, to)?;
-    return Ok(());
+    let from = from.as_ref();
+    if from.is_file() {
+        std::os::windows::fs::symlink_file(from, to)?;
+        return Ok(());
+    } else if from.is_dir() {
+        std::os::windows::fs::symlink_dir(from, to)?;
+        return Ok(());
+    } else {
+        return Err(anyhow::anyhow!(
+            "Can not deploy. {:?} is not file or directory.",
+            from
+        ));
+    }
 }
 
 fn deploy<P>(path: P, targets: Vec<Target>) -> anyhow::Result<()>
@@ -128,7 +139,7 @@ fn get_targets() -> Vec<Target> {
 
     targets.push(Target {
         from,
-        to: dirs::config_dir().unwrap(),
+        to: dirs::config_local_dir().unwrap(),
     });
 
     let mut from = dirs::home_dir().unwrap();
