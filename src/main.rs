@@ -187,21 +187,24 @@ fn print_status(
     s: Status,
 ) -> anyhow::Result<()> {
     if let Some(l) = lookup.get(&s) {
-        println!("");
+        let pkg_name = env!("CARGO_PKG_NAME");
         match s {
             Status::Deployed => {
+                println!("Files deployed:");
             },
             Status::UnDeployed => {
-                println!("Files are not deployed:");
-                println!("  (use \"rrcm deploy <file>...\" to deploy files)");
+                println!("Files can deploy:");
+                println!("  (use \"{:} deploy <file>...\" to deploy files)", pkg_name);
             }
             Status::UnManaged => {
-                println!("  (use \"rrcm add <file>...\" to manage and deploy files)");
+                println!("Files are not managed:");
+                println!("  (use \"{:} add <file>...\" to manage and deploy files)", pkg_name);
             },
             Status::Conflict => {
-                println!("  (symlink is not to managed file or not symlink.)");
-                println!("  (you can move or delete file or )");
-                println!("  (use \"rrcm deploy -f <file>...\" force deploy files)");
+                println!("Files can not deploy:");
+                println!("  (already exists other file at deploy path.)");
+                println!("  (you shuld move or delete file manualiy or )");
+                println!("  (use \"{:} deploy -f <file>...\" force deploy files)", pkg_name);
             },
         }
 
@@ -222,6 +225,7 @@ fn print_status(
                 Status::Conflict => cprintln!("    <red>{:?}: {:}</>", s, ff),
             };
         }
+        println!("");
     }
 
     return Ok(());
@@ -234,7 +238,7 @@ where
     let path = path.as_ref();
     let canonicalized_path = path.canonicalize()?;
     for target in targets {
-        if target.to == canonicalized_path {
+        if target.to == canonicalized_path || target.from == canonicalized_path {
             let from_files = create_filemap(&target.from)?;
             let to_files = create_filemap(&target.to)?;
 
@@ -253,9 +257,9 @@ where
                 .into_group_map();
 
             print_status(path, &lookup, Status::Deployed)?;
-            print_status(path, &lookup, Status::Conflict)?;
             print_status(path, &lookup, Status::UnManaged)?;
             print_status(path, &lookup, Status::UnDeployed)?;
+            print_status(path, &lookup, Status::Conflict)?;
 
             return Ok(());
         }
