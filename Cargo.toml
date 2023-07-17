@@ -11,8 +11,10 @@ clap = { version = "4.3.11", features = ["derive"] }
 dirs = "5.0.1"
 itertools = "0.11.0"
 path_abs = "0.5.1"
-termion = "2.0.1"
 trash = "3.0.6"
 
-[targets.'cfg(windows)'.dependencies]
+[target.'cfg(windows)'.dependencies]
 dunce = "1.0.3"
+
+[target.'cfg(unix)'.dependencies]
+termion = "2.0.1"

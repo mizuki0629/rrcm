@@ -4,12 +4,13 @@ use dirs;
 use itertools::Itertools;
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsString;
-use std::fs::{read_dir, read_link, rename, DirEntry};
+use std::fs::{read_dir, read_link, rename};
 use std::path;
 use std::path::Path;
 use std::path::PathBuf;
+
+#[cfg(target_family = "unix")]
 use termion::color;
-use path_abs;
 
 // 存在するか       Y Y Y N
 // Link             Y Y N /
@@ -198,6 +199,7 @@ fn print_status(
 ) -> anyhow::Result<()> {
     if let Some(l) = lookup.get(&status) {
         for ff in l {
+            #[cfg(target_family = "unix")]
             println!(
                 "{}{:>12} {}{:}",
                 match status {
@@ -209,6 +211,13 @@ fn print_status(
                 },
                 format!("{:?}", status),
                 color::Fg(color::Reset),
+                ff.to_str().unwrap()
+            );
+
+            #[cfg(not(target_family = "unix"))]
+            println!(
+                "{:>12} {:}",
+                format!("{:?}", status),
                 ff.to_str().unwrap()
             );
         }
