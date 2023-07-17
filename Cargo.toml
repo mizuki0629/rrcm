@@ -2,6 +2,8 @@
 name = "rrcm"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "RC file management commands"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,8 +14,6 @@ dirs = "5.0.1"
 itertools = "0.11.0"
 path_abs = "0.5.1"
 trash = "3.0.6"
-
-[target.'cfg(windows)'.dependencies]
 dunce = "1.0.3"
 
 [target.'cfg(unix)'.dependencies]

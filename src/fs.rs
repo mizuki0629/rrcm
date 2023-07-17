@@ -1,21 +1,15 @@
 use anyhow;
+use dunce::simplified;
+use path_abs;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use trash;
-use path_abs;
-
-#[cfg(target_os = "windows")]
-use dunce::simplified;
 
 pub fn canonicalize<P>(path: P) -> anyhow::Result<PathBuf>
 where
     P: AsRef<Path>,
 {
-    #[cfg(not(target_os = "windows"))]
-    return Ok(fs::canonicalize(path)?);
-
-    #[cfg(target_os = "windows")]
     return Ok(simplified(fs::canonicalize(path)?.as_path()).to_path_buf());
 }
 
@@ -23,10 +17,6 @@ pub fn absolutize<P>(path: P) -> anyhow::Result<PathBuf>
 where
     P: AsRef<Path>,
 {
-    #[cfg(not(target_os = "windows"))]
-    return Ok(path_abs::PathAbs::new(path)?.as_path().to_path_buf());
-
-    #[cfg(target_os = "windows")]
     return Ok(simplified(path_abs::PathAbs::new(path)?.as_path()).to_path_buf());
 }
 
