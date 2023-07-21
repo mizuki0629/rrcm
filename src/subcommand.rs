@@ -1,7 +1,9 @@
+use crate::appconfig;
 use crate::fs;
-use anyhow;
-use dirs;
+use anyhow::Context as _;
+use anyhow::{bail, Ok, Result};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsString;
 use std::fs::{read_dir, read_link, rename};
@@ -12,21 +14,15 @@ use std::path::PathBuf;
 #[cfg(target_family = "unix")]
 use termion::color;
 
-// 存在するか       Y Y Y N
-// Link             Y Y N /
-// Link先が正しいか Y N / /
-// ------------------------
-//                  T F F F
-
-fn create_filemap(path: &path::Path) -> anyhow::Result<HashMap<OsString, PathBuf>> {
+fn create_filemap(path: &path::Path) -> Result<HashMap<OsString, PathBuf>> {
     let mut dst: HashMap<_, _> = HashMap::new();
     for entry in read_dir(path)?.filter_map(|e| e.ok()) {
         dst.insert(entry.file_name(), entry.path());
     }
-    anyhow::Ok(dst)
+    Ok(dst)
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum DeployStatus {
     UnDeployed,
     Deployed,
@@ -34,7 +30,23 @@ enum DeployStatus {
     UnManaged,
 }
 
-fn get_status<P, Q>(from: Option<P>, to: Option<Q>) -> DeployStatus
+fn get_status<P, Q>(from: P, to: Q) -> DeployStatus
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    get_status_impl(
+        from.as_ref().exists().then_some(from),
+        to.as_ref().exists().then_some(to),
+    )
+}
+
+// 存在するか       Y Y Y N
+// Link             Y Y N /
+// Link先が正しいか Y N / /
+// ------------------------
+//                  T F F F
+fn get_status_impl<P, Q>(from: Option<P>, to: Option<Q>) -> DeployStatus
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -53,112 +65,73 @@ where
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 struct DeployPath {
     from: PathBuf,
     to: PathBuf,
 }
 
-fn get_deploy_paths() -> Vec<DeployPath> {
-    let mut paths = Vec::new();
+fn get_deploy_paths(app_config: &appconfig::AppConfig) -> Result<Vec<DeployPath>> {
+    let dotfiles_path = app_config
+        .dotfiles
+        .to_pathbuf()
+        .context("dotfiles directory path not defined.")?;
 
-    let mut from = dirs::home_dir().unwrap();
-    from.push("dotfiles");
-    from.push("config");
-    paths.push(DeployPath {
-        from,
-        to: dirs::config_local_dir().unwrap(),
-    });
+    Ok(app_config
+        .deploy
+        .iter()
+        .filter_map(|(dirname, to)| {
+            let from = dotfiles_path.join(PathBuf::from(dirname));
+            if !from.exists() {
+                return None;
+            }
 
-    let mut from = dirs::home_dir().unwrap();
-    from.push("dotfiles");
-    from.push("home");
-    paths.push(DeployPath {
-        from,
-        to: dirs::home_dir().unwrap(),
-    });
-
-    paths
+            let to = to.to_pathbuf().ok()?;
+            Some(DeployPath { from, to })
+        })
+        .collect::<Vec<DeployPath>>())
 }
 
-pub fn deploy<P>(path: P, force: bool) -> anyhow::Result<()>
+pub fn deploy<P>(path: P, force: bool) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    let path = path.as_ref();
-    let canonicalized_path = fs::canonicalize(path)?;
-    for deploy_path in get_deploy_paths() {
-        if deploy_path.from == canonicalized_path.parent().unwrap() {
-            let deploy_path_to = deploy_path.to.join(path.file_name().unwrap());
-            if deploy_path_to.exists() {
-                if force {
-                    fs::remove(deploy_path_to.clone())?;
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "File exists {:}",
-                        deploy_path_to.to_str().unwrap()
-                    ));
+    let from = path.as_ref();
+    let abs_from = fs::absolutize(from)?;
+
+    let app_config = appconfig::load_config()?;
+    for deploy_path in get_deploy_paths(&app_config)? {
+        if deploy_path.from == abs_from.parent().unwrap() {
+            let to = deploy_path.to.join(from.file_name().unwrap());
+
+            match get_status(from, &to) {
+                DeployStatus::UnDeployed => {
+                    fs::symlink(from, &to)?;
+                    return Ok(());
+                }
+                DeployStatus::Deployed => {
+                    return Ok(());
+                }
+                DeployStatus::Conflict => {
+                    if force {
+                        fs::remove(&to)?;
+                        fs::symlink(from, &to)?;
+                        return Ok(());
+                    }
+                    bail!("Another file exists. {:?}", to);
+                }
+                DeployStatus::UnManaged => {
+                    bail!("File not exists. {:?}", to);
                 }
             }
-            fs::symlink(path, deploy_path_to)?;
-            return Ok(());
-        }
-    }
-    return Err(anyhow::anyhow!(
-        "{:?} is not managed directory. Please add config.",
-        canonicalized_path
-    ));
-}
 
-pub fn add<P>(path: P) -> anyhow::Result<()>
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-    let canonicalized_path = fs::canonicalize(path)?;
-    for deploy_path in get_deploy_paths() {
-        if deploy_path.to == canonicalized_path.parent().unwrap() {
-            let manage_path = deploy_path.from.join(path.file_name().unwrap());
-            if manage_path.exists() {
-                return Err(anyhow::anyhow!("{:?} is already exists.", manage_path));
-            }
-            rename(path, manage_path.clone())?;
-            fs::symlink(manage_path, path)?;
-            return Ok(());
-        }
-    }
-    return Err(anyhow::anyhow!(
-        "{:?} is not managed directory. Please add config.",
-        canonicalized_path
-    ));
-}
-
-pub fn list(paths: Vec<PathBuf>) -> anyhow::Result<()> {
-    for path in paths {
-        let abs_path = fs::absolutize(&path)?;
-        for deploy_path in get_deploy_paths() {
-            if deploy_path.from == abs_path.parent().unwrap()
-                || deploy_path.to == abs_path.parent().unwrap()
+            #[allow(unreachable_code)]
             {
-                let to = deploy_path.to.join(abs_path.file_name().unwrap());
-                let from = deploy_path.from.join(abs_path.file_name().unwrap());
-
-                let s = get_status(
-                    if from.exists() {
-                        Some(from.as_path())
-                    } else {
-                        None
-                    },
-                    if to.exists() {
-                        Some(to.as_path())
-                    } else {
-                        None
-                    },
-                );
-                println!("{:?} {:?}", s, path);
+                unreachable!("The loop should always return");
             }
         }
     }
-    return Ok(());
+    bail!("{:?} is not source directory.", abs_from);
 }
 
 fn print_status_description(s: &DeployStatus) {
@@ -168,11 +141,8 @@ fn print_status_description(s: &DeployStatus) {
             println!("Files deployed:");
         }
         DeployStatus::UnDeployed => {
-            println!(
-                "Files can deploy:
-  (use \"{:} deploy <PATH>...\" to deploy files)",
-                pkg_name
-            );
+            println!("Files can deploy:");
+            println!("  (use \"{:} deploy <PATH>...\" to deploy files)", pkg_name);
         }
         DeployStatus::UnManaged => {
             println!("Files are not managed:");
@@ -193,10 +163,15 @@ fn print_status_description(s: &DeployStatus) {
     }
 }
 
-fn print_status(
-    lookup: &HashMap<DeployStatus, Vec<PathBuf>>,
-    status: DeployStatus,
-) -> anyhow::Result<()> {
+fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
+    println!("Deploy From -> To ");
+    for deploy_path in deploy_paths {
+        println!("    {:?} -> {:?}", deploy_path.from, deploy_path.to);
+    }
+    println!("");
+}
+
+fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatus) -> Result<()> {
     if let Some(l) = lookup.get(&status) {
         for ff in l {
             #[cfg(target_family = "unix")]
@@ -211,33 +186,29 @@ fn print_status(
                 },
                 format!("{:?}", status),
                 color::Fg(color::Reset),
-                ff.to_str().unwrap()
+                ff
             );
 
             #[cfg(not(target_family = "unix"))]
-            println!(
-                "{:>12} {:}",
-                format!("{:?}", status),
-                ff.to_str().unwrap()
-            );
+            println!("{:>12} {:}", format!("{:?}", status), ff);
         }
     }
 
     return Ok(());
 }
 
-pub fn status<P>(path: P, simple: bool) -> anyhow::Result<()>
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-    let canonicalized_path = fs::canonicalize(path)?;
-    for deploy_path in get_deploy_paths() {
-        if deploy_path.to == canonicalized_path || deploy_path.from == canonicalized_path {
-            let from_files = create_filemap(&deploy_path.from)?;
-            let to_files = create_filemap(&deploy_path.to)?;
+pub fn status(all: bool) -> Result<()> {
+    let app_config = appconfig::load_config()?;
+    let deploy_paths = get_deploy_paths(&app_config)?;
+    print_deploy_paths(&deploy_paths);
 
-            let lookup = from_files
+    let lookup = deploy_paths
+        .iter()
+        .map(|deploy_path| {
+            let from_files = create_filemap(&deploy_path.from).unwrap();
+            let to_files = create_filemap(&deploy_path.to).unwrap();
+
+            from_files
                 .keys()
                 .chain(to_files.keys())
                 .collect::<BTreeSet<_>>()
@@ -245,44 +216,35 @@ where
                 .map(|f| {
                     let from = from_files.get(*f);
                     let to = to_files.get(*f);
-                    let s = get_status(from, to);
+                    let s = get_status_impl(from, to);
                     let ff = match s {
-                        DeployStatus::Deployed => to,
-                        DeployStatus::UnDeployed => from,
-                        DeployStatus::UnManaged => to,
-                        DeployStatus::Conflict => to,
-                    }
-                    .unwrap();
+                        DeployStatus::Deployed => format!(
+                            "{:} -> {:}",
+                            from.unwrap().to_str().unwrap(),
+                            to.unwrap().to_str().unwrap()
+                        ),
+                        DeployStatus::UnDeployed => format!("{:}", from.unwrap().to_str().unwrap()),
+                        DeployStatus::UnManaged => format!("{:}", to.unwrap().to_str().unwrap()),
+                        DeployStatus::Conflict => format!("{:}", from.unwrap().to_str().unwrap()),
+                    };
 
-                    (
-                        s,
-                        ff.strip_prefix(path).unwrap_or(ff.as_path()).to_path_buf(),
-                    )
+                    (s, ff)
                 })
-                .into_group_map();
+                .collect_vec()
+        })
+        .flatten()
+        .into_group_map();
 
-            for s in vec![
-                DeployStatus::Deployed,
-                DeployStatus::UnManaged,
-                DeployStatus::UnDeployed,
-                DeployStatus::Conflict,
-            ] {
-                if lookup.contains_key(&s) {
-                    if !simple {
-                        print_status_description(&s);
-                    }
-                    print_status(&lookup, s)?;
-                    if !simple {
-                        println!("");
-                    }
-                }
-            }
-
-            return Ok(());
+    for s in vec![
+        DeployStatus::Deployed,
+        DeployStatus::UnDeployed,
+        DeployStatus::Conflict,
+    ] {
+        if lookup.contains_key(&s) {
+            print_status_description(&s);
+            print_status(&lookup, s)?;
+            println!("");
         }
     }
-    return Err(anyhow::anyhow!(
-        "{:?} is not managed directory.",
-        canonicalized_path
-    ));
+    return Ok(());
 }

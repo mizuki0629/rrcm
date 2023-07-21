@@ -1,5 +1,6 @@
 mod fs;
 mod subcommand;
+mod appconfig;
 
 use anyhow;
 use clap::{Parser, Subcommand};
@@ -22,17 +23,9 @@ struct Args {
 enum SubCommands {
     /// Print deploy status.
     Status {
-        #[clap(default_value = ".")]
-        path: PathBuf,
-        /// if eists file, remove and deploy.  
+        /// Print all status
         #[clap(short, long, default_value_t = false)]
-        simple: bool,
-    },
-    /// Add managed file or folder.
-    Add {
-        /// file or directory path
-        #[clap(required = true, ignore_case = true)]
-        path: Vec<PathBuf>,
+        all: bool,
     },
     /// Deploy file or folder.
     Deploy {
@@ -43,31 +36,16 @@ enum SubCommands {
         #[clap(short, long, default_value_t = false)]
         force: bool,
     },
-    /// Print
-    List {
-        /// file or directory path
-        #[clap(required = true, ignore_case = true)]
-        path: Vec<PathBuf>,
-    },
 }
 
 fn main() -> anyhow::Result<()> {
     match Args::parse().subcommand {
-        SubCommands::Status { path, simple } => {
-            subcommand::status(path.as_path(), simple)
-        }
-        SubCommands::List { path } => {
-            subcommand::list(path)
-        },
-        SubCommands::Add { path } => {
-            for p in path {
-                subcommand::add(p.as_path())?;
-            }
-            Ok(())
+        SubCommands::Status { all } => {
+            subcommand::status(all)
         }
         SubCommands::Deploy { path, force } => {
             for p in path {
-                subcommand::deploy(p.as_path(), force)?
+                subcommand::deploy(&p, force)?
             }
             Ok(())
         }

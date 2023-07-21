@@ -6,6 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use trash;
 
+#[allow(dead_code)]
 pub fn canonicalize<P>(path: P) -> anyhow::Result<PathBuf>
 where
     P: AsRef<Path>,
