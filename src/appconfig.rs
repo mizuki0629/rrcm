@@ -168,6 +168,20 @@ impl Default for AppConfig {
             },
             String::from("config") => OsPath {
                 windows: Some(OsPathType::Relative {
+                    base: KnownFolder::FOLDERID_RoamingAppData,
+                    path: None,
+                }),
+                mac: Some(OsPathType::Relative {
+                    base: MacOSStandardDirectories::Preference,
+                    path: None,
+                }),
+                linux: Some(OsPathType::Relative {
+                    base: XDGBaseDirectory::XDG_CONFIG_HOME,
+                    path: None,
+                }),
+            },
+            String::from("config_local") => OsPath {
+                windows: Some(OsPathType::Relative {
                     base: KnownFolder::FOLDERID_LocalAppData,
                     path: None,
                 }),

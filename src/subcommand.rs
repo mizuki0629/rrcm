@@ -6,7 +6,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsString;
-use std::fs::{read_dir, read_link, rename};
+use std::fs::{read_dir, read_link};
 use std::path;
 use std::path::Path;
 use std::path::PathBuf;
@@ -197,7 +197,7 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
     return Ok(());
 }
 
-pub fn status(all: bool) -> Result<()> {
+pub fn status(_all: bool) -> Result<()> {
     let app_config = appconfig::load_config()?;
     let deploy_paths = get_deploy_paths(&app_config)?;
     print_deploy_paths(&deploy_paths);
