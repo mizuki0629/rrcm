@@ -36,6 +36,7 @@ use std::path::PathBuf;
 /// get_xdg_default("XDG_CONFIG_DIR"); // panic
 /// ```
 ///
+#[cfg(not(target_os = "windows"))]
 fn get_xdg_default(s: &str) -> Result<String> {
     let mut path = PathBuf::new();
     match s {
@@ -80,6 +81,7 @@ fn get_xdg_default(s: &str) -> Result<String> {
 /// assert_eq!(is_xdg_base_directory("XDG_CONFIG_DIR"), false);
 /// ```
 ///
+#[cfg(not(target_os = "windows"))]
 fn is_xdg_base_directory(s: &str) -> bool {
     match s {
         "XDG_CONFIG_HOME" => true,
@@ -189,7 +191,7 @@ fn expand_env_var_windows(s: &str) -> Result<String> {
             if varname.is_empty() {
                 bail!("invalid environment variable: {}", s);
             }
-            if !is_known_folder_id(&varname) {
+            if is_known_folder_id(&varname) {
                 result.push_str(&get_known_folder(&varname)?);
                 continue;
             }
@@ -211,6 +213,7 @@ fn expand_env_var_windows(s: &str) -> Result<String> {
 /// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 ///
 ///
+#[cfg(not(target_os = "windows"))]
 fn expand_env_var_unix(s: &str) -> Result<String> {
     let mut result = String::new();
     let mut chars = s.chars();
