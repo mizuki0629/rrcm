@@ -4,6 +4,8 @@
 //! Each subcommand is implemented as a function.
 use crate::appconfig;
 use crate::fs;
+use core::fmt::{self, Display};
+use core::hash::Hash;
 use anyhow::{bail, Context as _, Ok, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -23,12 +25,47 @@ fn create_filemap(path: &Path) -> Result<HashMap<OsString, PathBuf>> {
     Ok(dst)
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, Eq, Clone)]
 enum DeployStatus {
     UnDeployed,
     Deployed,
-    Conflict,
+    Conflict {
+        cause: String,
+    },
     UnManaged,
+}
+impl PartialEq for DeployStatus {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (DeployStatus::UnDeployed, DeployStatus::UnDeployed) => true,
+            (DeployStatus::Deployed, DeployStatus::Deployed) => true,
+            (DeployStatus::UnManaged, DeployStatus::UnManaged) => true,
+            (DeployStatus::Conflict { .. }, DeployStatus::Conflict { .. }) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Hash for DeployStatus {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            DeployStatus::UnDeployed => 0.hash(state),
+            DeployStatus::Deployed => 1.hash(state),
+            DeployStatus::UnManaged => 2.hash(state),
+            DeployStatus::Conflict { .. } => 3.hash(state),
+        }
+    }
+}
+
+impl Display for DeployStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DeployStatus::UnDeployed => write!(f, "UnDeployed"),
+            DeployStatus::Deployed => write!(f, "Deployed"),
+            DeployStatus::UnManaged => write!(f, "UnManaged"),
+            DeployStatus::Conflict { .. } => write!(f, "Conflict"),
+        }
+    }
 }
 
 fn get_status<P, Q>(from: P, to: Q) -> DeployStatus
@@ -59,11 +96,19 @@ where
         return DeployStatus::UnDeployed;
     };
 
-    if to.as_ref().is_symlink() && fs::absolutize(from).unwrap() == fs::absolutize(read_link(to).unwrap()).unwrap() {
-        return DeployStatus::Deployed;
-    } else {
-        return DeployStatus::Conflict;
+    if !to.as_ref().is_symlink() {
+        return DeployStatus::Conflict {
+            cause: format!("Not symlink."),
+        };
     }
+
+    let abs_to_link = fs::absolutize(read_link(to).unwrap()).unwrap();
+    if fs::absolutize(from).unwrap() != abs_to_link {
+        return DeployStatus::Conflict {
+            cause: format!("Symlink to a different destination. {:?}", abs_to_link),
+        };
+    }
+    return DeployStatus::Deployed;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,7 +171,7 @@ where
                 DeployStatus::Deployed => {
                     return Ok(());
                 }
-                DeployStatus::Conflict => {
+                DeployStatus::Conflict { .. } => {
                     if force {
                         fs::remove(&to)?;
                         fs::symlink(from, &to)?;
@@ -165,7 +210,7 @@ fn print_status_description(s: &DeployStatus) {
                 pkg_name
             );
         }
-        DeployStatus::Conflict => {
+        DeployStatus::Conflict { .. } => {
             println!("Files can not deploy:");
             println!("  (already exists other file at deploy path.)");
             println!("  (you shuld move or delete file manualiy or )");
@@ -196,15 +241,15 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
                     DeployStatus::UnDeployed => color::Fg(color::Yellow).to_string(),
                     DeployStatus::UnManaged =>
                         color::Fg(color::AnsiValue::grayscale(12)).to_string(),
-                    DeployStatus::Conflict => color::Fg(color::Red).to_string(),
+                    DeployStatus::Conflict { .. } => color::Fg(color::Red).to_string(),
                 },
-                format!("{:?}", status),
+                format!("{:}", status),
                 color::Fg(color::Reset),
                 ff
             );
 
             #[cfg(not(target_family = "unix"))]
-            println!("{:>12} {:}", format!("{:?}", status), ff);
+            println!("{:>12} {:}", format!("{:}", status), ff);
         }
     }
 
@@ -244,7 +289,7 @@ where
                     let from = from_files.get(*f);
                     let to = to_files.get(*f);
                     let s = get_status_impl(from, to);
-                    let ff = match s {
+                    let ff = match &s {
                         DeployStatus::Deployed => format!(
                             "{:} => {:}",
                             from.unwrap().to_str().unwrap(),
@@ -252,11 +297,11 @@ where
                         ),
                         DeployStatus::UnDeployed => format!("{:}", from.unwrap().to_str().unwrap()),
                         DeployStatus::UnManaged => format!("{:}", to.unwrap().to_str().unwrap()),
-                        DeployStatus::Conflict => format!(
-                            "{:} => {:}({:})",
+                        DeployStatus::Conflict { cause } => format!(
+                            "{:} => {:} ({:})",
                             from.unwrap().to_str().unwrap(),
                             to.unwrap().to_str().unwrap(),
-                            read_link(to.unwrap()).unwrap().to_str().unwrap()
+                            cause,
                         ),
                     };
 
@@ -270,7 +315,7 @@ where
     for s in vec![
         DeployStatus::Deployed,
         DeployStatus::UnDeployed,
-        DeployStatus::Conflict,
+        DeployStatus::Conflict { cause: "".to_string() },
     ] {
         if lookup.contains_key(&s) {
             print_status_description(&s);
