@@ -37,7 +37,7 @@ fn get_known_folder(s: &str) -> Result<String> {
         _ => bail!("invalid KNOWNFOLDERID: {}", s),
     }
     Ok(path.to_str().unwrap().to_string())
-} 
+}
 
 /// Check if the specified string is knownfolderid
 /// KNOWNFOLDERID is one of the following:
