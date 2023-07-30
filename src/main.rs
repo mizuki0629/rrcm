@@ -44,12 +44,8 @@ enum SubCommands {
 
 fn main() -> anyhow::Result<()> {
     match Args::parse().subcommand {
-        SubCommands::Init { path } => {
-            rrcm::init(path)
-        }
-        SubCommands::Status { path, all } => {
-            rrcm::status(path, all)
-        }
+        SubCommands::Init { path } => rrcm::init(path),
+        SubCommands::Status { path, all } => rrcm::status(path, all),
         SubCommands::Deploy { path, force } => {
             for p in path {
                 rrcm::deploy(&p, force)?

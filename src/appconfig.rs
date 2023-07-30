@@ -1,9 +1,9 @@
-use anyhow::{bail, Ok, Result, ensure, Context as _};
+use crate::path::expand_env_var;
+use anyhow::{bail, ensure, Context as _, Ok, Result};
 use maplit::hashmap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use crate::path::expand_env_var;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OsPath {
@@ -73,7 +73,8 @@ where
     P: AsRef<Path>,
 {
     let config_path = path.as_ref().join("rrcm.toml");
-    Ok(confy::load_path(&config_path).with_context(|| format!("Failed to init {:?}", &config_path))?)
+    Ok(confy::load_path(&config_path)
+        .with_context(|| format!("Failed to init {:?}", &config_path))?)
 }
 
 /// Load config from config.toml
@@ -82,6 +83,11 @@ where
     P: AsRef<Path>,
 {
     let config_path = path.as_ref().join("rrcm.toml");
-    ensure!(config_path.exists(), "{:?} is not managed directory.", path.as_ref());
-    Ok(confy::load_path(&config_path).with_context(|| format!("Failed to load {:?}", &config_path))?)
+    ensure!(
+        config_path.exists(),
+        "{:?} is not managed directory.",
+        path.as_ref()
+    );
+    Ok(confy::load_path(&config_path)
+        .with_context(|| format!("Failed to load {:?}", &config_path))?)
 }

@@ -4,18 +4,20 @@
 //! Each subcommand is implemented as a function.
 use crate::appconfig;
 use crate::fs;
+use anyhow::{bail, Context as _, Ok, Result};
 use core::fmt::{self, Display};
 use core::hash::Hash;
-use anyhow::{bail, Context as _, Ok, Result};
+use crossterm::{
+    style::{Color, Print, ResetColor, SetForegroundColor},
+    ExecutableCommand,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsString;
 use std::fs::{read_dir, read_link};
+use std::io::stdout;
 use std::path::{Path, PathBuf};
-
-#[cfg(target_family = "unix")]
-use termion::color;
 
 fn create_filemap(path: &Path) -> Result<HashMap<OsString, PathBuf>> {
     let mut dst: HashMap<_, _> = HashMap::new();
@@ -29,9 +31,7 @@ fn create_filemap(path: &Path) -> Result<HashMap<OsString, PathBuf>> {
 enum DeployStatus {
     UnDeployed,
     Deployed,
-    Conflict {
-        cause: String,
-    },
+    Conflict { cause: String },
     UnManaged,
 }
 impl PartialEq for DeployStatus {
@@ -105,7 +105,7 @@ where
     let abs_to_link = fs::absolutize(read_link(to).unwrap()).unwrap();
     if fs::absolutize(from).unwrap() != abs_to_link {
         return DeployStatus::Conflict {
-            cause: format!("Symlink to a different destination. {:?}", abs_to_link),
+            cause: format!("Different symlink to {:?}.", abs_to_link),
         };
     }
     return DeployStatus::Deployed;
@@ -233,23 +233,16 @@ fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
 fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatus) -> Result<()> {
     if let Some(l) = lookup.get(&status) {
         for ff in l {
-            #[cfg(target_family = "unix")]
-            println!(
-                "{}{:>12} {}{:}",
-                match status {
-                    DeployStatus::Deployed => color::Fg(color::Green).to_string(),
-                    DeployStatus::UnDeployed => color::Fg(color::Yellow).to_string(),
-                    DeployStatus::UnManaged =>
-                        color::Fg(color::AnsiValue::grayscale(12)).to_string(),
-                    DeployStatus::Conflict { .. } => color::Fg(color::Red).to_string(),
-                },
-                format!("{:}", status),
-                color::Fg(color::Reset),
-                ff
-            );
-
-            #[cfg(not(target_family = "unix"))]
-            println!("{:>12} {:}", format!("{:}", status), ff);
+            stdout()
+                .execute(match status {
+                    DeployStatus::Deployed => SetForegroundColor(Color::Green),
+                    DeployStatus::UnDeployed => SetForegroundColor(Color::Yellow),
+                    DeployStatus::Conflict { .. } => SetForegroundColor(Color::Red),
+                    DeployStatus::UnManaged => SetForegroundColor(Color::Grey),
+                })?
+                .execute(Print(format!("{:>12}", format!("{:}", status))))?
+                .execute(ResetColor)?
+                .execute(Print(format!(" {}\n", ff)))?;
         }
     }
 
@@ -315,7 +308,9 @@ where
     for s in vec![
         DeployStatus::Deployed,
         DeployStatus::UnDeployed,
-        DeployStatus::Conflict { cause: "".to_string() },
+        DeployStatus::Conflict {
+            cause: "".to_string(),
+        },
     ] {
         if lookup.contains_key(&s) {
             print_status_description(&s);

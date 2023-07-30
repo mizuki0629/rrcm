@@ -1,6 +1,6 @@
 [package]
 name = "rrcm"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 license = "MIT"
 description = "Rust RC file Management commands"
@@ -21,6 +21,4 @@ confy = { version = "0.5.1" }
 serde = { version = "1.0", features = ["derive"] }
 maplit = "1.0.2"
 dirs-sys = "0.4.1"
-
-[target.'cfg(unix)'.dependencies]
-termion = "2.0.1"
+crossterm = "0.26.1"
