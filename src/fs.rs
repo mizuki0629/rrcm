@@ -1,3 +1,4 @@
+//! File system utilities.
 use anyhow;
 use dunce::simplified;
 use path_abs;

@@ -1,20 +1,21 @@
+//! Subcommand module
+//!
+//! This module contains subcommands.
+//! Each subcommand is implemented as a function.
 use crate::appconfig;
 use crate::fs;
-use anyhow::Context as _;
-use anyhow::{bail, Ok, Result};
+use anyhow::{bail, Context as _, Ok, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsString;
 use std::fs::{read_dir, read_link};
-use std::path;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[cfg(target_family = "unix")]
 use termion::color;
 
-fn create_filemap(path: &path::Path) -> Result<HashMap<OsString, PathBuf>> {
+fn create_filemap(path: &Path) -> Result<HashMap<OsString, PathBuf>> {
     let mut dst: HashMap<_, _> = HashMap::new();
     for entry in read_dir(path)?.filter_map(|e| e.ok()) {
         dst.insert(entry.file_name(), entry.path());
@@ -71,17 +72,15 @@ struct DeployPath {
     to: PathBuf,
 }
 
-fn get_deploy_paths(app_config: &appconfig::AppConfig) -> Result<Vec<DeployPath>> {
-    let dotfiles_path = app_config
-        .dotfiles
-        .to_pathbuf()
-        .context("dotfiles directory path not defined.")?;
-
+fn get_deploy_paths<P>(path: P, app_config: &appconfig::AppConfig) -> Result<Vec<DeployPath>>
+where
+    P: AsRef<Path>,
+{
     Ok(app_config
         .deploy
         .iter()
         .filter_map(|(dirname, to)| {
-            let from = dotfiles_path.join(PathBuf::from(dirname));
+            let from = path.as_ref().join(PathBuf::from(dirname));
             if !from.exists() {
                 return None;
             }
@@ -92,6 +91,17 @@ fn get_deploy_paths(app_config: &appconfig::AppConfig) -> Result<Vec<DeployPath>
         .collect::<Vec<DeployPath>>())
 }
 
+/// Deploy Files
+///
+/// # Arguments
+/// * `path` - Path to deploy files
+/// * `force` - Force deploy
+///
+/// # Example
+/// ```sh
+/// $ rrcm deploy .vimrc
+/// ```
+///
 pub fn deploy<P>(path: P, force: bool) -> Result<()>
 where
     P: AsRef<Path>,
@@ -99,8 +109,12 @@ where
     let from = path.as_ref();
     let abs_from = fs::absolutize(from)?;
 
-    let app_config = appconfig::load_config()?;
-    for deploy_path in get_deploy_paths(&app_config)? {
+    let managed_path = path
+        .as_ref()
+        .parent()
+        .with_context(|| format!("Can not get parent directory of {:?}", path.as_ref()))?;
+    let app_config = appconfig::load_config(managed_path)?;
+    for deploy_path in get_deploy_paths(managed_path, &app_config)? {
         if deploy_path.from == abs_from.parent().unwrap() {
             let to = deploy_path.to.join(from.file_name().unwrap());
 
@@ -178,11 +192,11 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
             println!(
                 "{}{:>12} {}{:}",
                 match status {
-                    DeployStatus::Deployed => format!("{}", color::Fg(color::Green)),
-                    DeployStatus::UnDeployed => format!("{}", color::Fg(color::Yellow)),
+                    DeployStatus::Deployed => color::Fg(color::Green).to_string(),
+                    DeployStatus::UnDeployed => color::Fg(color::Yellow).to_string(),
                     DeployStatus::UnManaged =>
-                        format!("{}", color::Fg(color::AnsiValue::grayscale(12))),
-                    DeployStatus::Conflict => format!("{}", color::Fg(color::Red)),
+                        color::Fg(color::AnsiValue::grayscale(12)).to_string(),
+                    DeployStatus::Conflict => color::Fg(color::Red).to_string(),
                 },
                 format!("{:?}", status),
                 color::Fg(color::Reset),
@@ -198,9 +212,21 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
 }
 
 /// Show status of files.
-pub fn status(_all: bool) -> Result<()> {
-    let app_config = appconfig::load_config()?;
-    let deploy_paths = get_deploy_paths(&app_config)?;
+/// # Arguments
+/// * `all` - Show all files.
+/// # Example
+/// ```sh
+/// $ rrcm status
+/// ```
+/// ```sh
+/// $ rrcm status -a
+/// ```
+pub fn status<P>(path: P, _all: bool) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let app_config = appconfig::load_config(&path)?;
+    let deploy_paths = get_deploy_paths(path, &app_config)?;
     print_deploy_paths(&deploy_paths);
 
     let lookup = deploy_paths
@@ -247,5 +273,13 @@ pub fn status(_all: bool) -> Result<()> {
             println!("");
         }
     }
+    return Ok(());
+}
+
+pub fn init<P>(path: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    appconfig::init_config(&path)?;
     return Ok(());
 }

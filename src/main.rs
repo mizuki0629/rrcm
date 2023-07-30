@@ -1,7 +1,3 @@
-mod fs;
-mod subcommand;
-mod appconfig;
-
 use anyhow;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -21,9 +17,17 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum SubCommands {
+    /// Initialize config file.
+    Init {
+        /// Print all status
+        #[clap(required = true, ignore_case = true)]
+        path: PathBuf,
+    },
     /// Print deploy status.
     Status {
         /// Print all status
+        #[clap(required = true, ignore_case = true)]
+        path: PathBuf,
         #[clap(short, long, default_value_t = false)]
         all: bool,
     },
@@ -40,12 +44,15 @@ enum SubCommands {
 
 fn main() -> anyhow::Result<()> {
     match Args::parse().subcommand {
-        SubCommands::Status { all } => {
-            subcommand::status(all)
+        SubCommands::Init { path } => {
+            rrcm::init(path)
+        }
+        SubCommands::Status { path, all } => {
+            rrcm::status(path, all)
         }
         SubCommands::Deploy { path, force } => {
             for p in path {
-                subcommand::deploy(&p, force)?
+                rrcm::deploy(&p, force)?
             }
             Ok(())
         }
