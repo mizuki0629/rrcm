@@ -59,7 +59,7 @@ where
         return DeployStatus::UnDeployed;
     };
 
-    if to.as_ref().is_symlink() && from.as_ref() == read_link(to).unwrap() {
+    if to.as_ref().is_symlink() && fs::absolutize(from).unwrap() == fs::absolutize(read_link(to).unwrap()).unwrap() {
         return DeployStatus::Deployed;
     } else {
         return DeployStatus::Conflict;
@@ -178,9 +178,9 @@ fn print_status_description(s: &DeployStatus) {
 }
 
 fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
-    println!("Deploy From -> To ");
+    println!("Deploy From => To ");
     for deploy_path in deploy_paths {
-        println!("    {:?} -> {:?}", deploy_path.from, deploy_path.to);
+        println!("    {:?} => {:?}", deploy_path.from, deploy_path.to);
     }
     println!("");
 }
@@ -246,13 +246,18 @@ where
                     let s = get_status_impl(from, to);
                     let ff = match s {
                         DeployStatus::Deployed => format!(
-                            "{:} -> {:}",
+                            "{:} => {:}",
                             from.unwrap().to_str().unwrap(),
                             to.unwrap().to_str().unwrap()
                         ),
                         DeployStatus::UnDeployed => format!("{:}", from.unwrap().to_str().unwrap()),
                         DeployStatus::UnManaged => format!("{:}", to.unwrap().to_str().unwrap()),
-                        DeployStatus::Conflict => format!("{:}", from.unwrap().to_str().unwrap()),
+                        DeployStatus::Conflict => format!(
+                            "{:} => {:}({:})",
+                            from.unwrap().to_str().unwrap(),
+                            to.unwrap().to_str().unwrap(),
+                            read_link(to.unwrap()).unwrap().to_str().unwrap()
+                        ),
                     };
 
                     (s, ff)
