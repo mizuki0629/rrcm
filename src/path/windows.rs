@@ -6,11 +6,7 @@
 use anyhow::Context as _;
 use anyhow::{bail, Ok, Result};
 use dirs;
-use maplit::hashmap;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
-use crate::path::expand_env_var;
 
 /// Get path of known folder
 /// KNOWNFOLDERID is one of the following:
@@ -67,7 +63,7 @@ fn is_known_folder_id(s: &str) -> bool {
 /// %VARNAME% format is supported
 /// If VARNAME is KNOWNFOLDERID, expand to path of known folder
 /// https://docs.microsoft.com/ja-jp/windows/win32/shell/knownfolderid
-fn expand_env_var_windows(s: &str) -> Result<String> {
+pub fn expand_env_var(s: &str) -> Result<String> {
     let mut result = String::new();
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
