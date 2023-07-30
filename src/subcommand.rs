@@ -13,19 +13,10 @@ use crossterm::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap};
-use std::ffi::OsString;
+use std::collections::HashMap;
 use std::fs::{read_dir, read_link};
 use std::io::stdout;
 use std::path::{Path, PathBuf};
-
-fn create_filemap(path: &Path) -> Result<HashMap<OsString, PathBuf>> {
-    let mut dst: HashMap<_, _> = HashMap::new();
-    for entry in read_dir(path)?.filter_map(|e| e.ok()) {
-        dst.insert(entry.file_name(), entry.path());
-    }
-    Ok(dst)
-}
 
 #[derive(Debug, Eq, Clone)]
 enum DeployStatus {
@@ -105,7 +96,7 @@ where
     let abs_to_link = fs::absolutize(read_link(to).unwrap()).unwrap();
     if fs::absolutize(from).unwrap() != abs_to_link {
         return DeployStatus::Conflict {
-            cause: format!("Different symlink to {:?}.", abs_to_link),
+            cause: format!("Different symlink to {}.", abs_to_link.to_string_lossy()),
         };
     }
     return DeployStatus::Deployed;
@@ -225,7 +216,11 @@ fn print_status_description(s: &DeployStatus) {
 fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
     println!("Deploy From => To ");
     for deploy_path in deploy_paths {
-        println!("    {:?} => {:?}", deploy_path.from, deploy_path.to);
+        println!(
+            "    {} => {}",
+            deploy_path.from.to_string_lossy(),
+            deploy_path.to.to_string_lossy()
+        );
     }
     println!("");
 }
@@ -269,38 +264,32 @@ where
 
     let lookup = deploy_paths
         .iter()
-        .map(|deploy_path| {
-            let from_files = create_filemap(&deploy_path.from).unwrap();
-            let to_files = create_filemap(&deploy_path.to).unwrap();
+        .filter_map(|deploy_path| {
+            Some(
+                read_dir(&deploy_path.from)
+                    .ok()?
+                    .filter_map(|from| {
+                        let from = from.ok()?.path();
+                        let to = deploy_path.to.join(from.file_name()?);
+                        let s = get_status(&from, &to);
+                        let ff = match &s {
+                            DeployStatus::Deployed => {
+                                format!("{:} => {:}", from.to_string_lossy(), to.to_string_lossy())
+                            }
+                            DeployStatus::UnDeployed => format!("{:}", from.to_string_lossy()),
+                            DeployStatus::UnManaged => format!("{:}", to.to_string_lossy()),
+                            DeployStatus::Conflict { cause } => format!(
+                                "{:} => {:} ({:})",
+                                from.to_string_lossy(),
+                                to.to_string_lossy(),
+                                cause,
+                            ),
+                        };
 
-            from_files
-                .keys()
-                .chain(to_files.keys())
-                .collect::<BTreeSet<_>>()
-                .iter()
-                .map(|f| {
-                    let from = from_files.get(*f);
-                    let to = to_files.get(*f);
-                    let s = get_status_impl(from, to);
-                    let ff = match &s {
-                        DeployStatus::Deployed => format!(
-                            "{:} => {:}",
-                            from.unwrap().to_str().unwrap(),
-                            to.unwrap().to_str().unwrap()
-                        ),
-                        DeployStatus::UnDeployed => format!("{:}", from.unwrap().to_str().unwrap()),
-                        DeployStatus::UnManaged => format!("{:}", to.unwrap().to_str().unwrap()),
-                        DeployStatus::Conflict { cause } => format!(
-                            "{:} => {:} ({:})",
-                            from.unwrap().to_str().unwrap(),
-                            to.unwrap().to_str().unwrap(),
-                            cause,
-                        ),
-                    };
-
-                    (s, ff)
-                })
-                .collect_vec()
+                        Some((s, ff))
+                    })
+                    .collect_vec(),
+            )
         })
         .flatten()
         .into_group_map();
