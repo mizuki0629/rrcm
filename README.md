@@ -11,15 +11,20 @@ Provides the location of these directories by leveraging the mechanisms defined 
 - the [Known Folder](https://msdn.microsoft.com/en-us/library/windows/desktop/dd378457.aspx) API on Windows
 
 
+```
 dotfiles
 ├── rrcm.toml       Deploy setting file.
-├── home         -> $HOME(Linux, macOS), %PROFILE%\AppData\Local(Windows)
+├── home         -> $HOME(Linux, macOS),
+│   │               %PROFILE%\AppData\Local(Windows)
 │   └── .profile
-├── config       -> $HOME/.config(Linux, macOS), %PROFILE%\AppData\Roaming(Windows)
+├── config       -> $HOME/.config(Linux, macOS),
+│   │               %PROFILE%\AppData\Roaming(Windows)
 │   ├── fish
 │   └── tmux 
-└── config_local -> $HOME/.config(Linux, macOS), %PROFILE%\AppData\Local(Windows)
+└── config_local -> $HOME/.config(Linux, macOS),
+    │               %PROFILE%\AppData\Local(Windows)
     └── nvim
+```
 
 ## Installation
 ```sh
@@ -58,4 +63,6 @@ linux = '${XDG_CONFIG_HOME}'
 ```sh
 # deploy under dtifles/config
 rrcm deploy dotfiles/config/*
+rrcm deploy dotfiles/home/*
+...
 ```
