@@ -116,7 +116,10 @@ mod tests {
     fn test_expand_env_var() {
         let s = "${HOME}/.config";
         let result = expand_env_var(s).unwrap();
-        assert_eq!(result, format!("{}/.config", std::env::var("HOME").unwrap()));
+        assert_eq!(
+            result,
+            format!("{}/.config", std::env::var("HOME").unwrap())
+        );
 
         let s = "${XDG_CONFIG_HOME}/.config";
         let result = expand_env_var(s).unwrap();
@@ -134,7 +137,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-
     #[test]
     fn test_is_xdg_base_directory() {
         assert!(is_xdg_base_directory("XDG_CONFIG_HOME"));
@@ -146,10 +148,16 @@ mod tests {
     #[test]
     fn test_get_xdg_default() {
         let result = get_xdg_default("XDG_CONFIG_HOME").unwrap();
-        assert_eq!(result, format!("{}/.config", std::env::var("HOME").unwrap()));
+        assert_eq!(
+            result,
+            format!("{}/.config", std::env::var("HOME").unwrap())
+        );
 
         let result = get_xdg_default("XDG_DATA_HOME").unwrap();
-        assert_eq!(result, format!("{}/.local/share", std::env::var("HOME").unwrap()));
+        assert_eq!(
+            result,
+            format!("{}/.local/share", std::env::var("HOME").unwrap())
+        );
 
         let result = get_xdg_default("XDG_CACHE_HOME").unwrap();
         assert_eq!(result, format!("{}/.cache", std::env::var("HOME").unwrap()));
