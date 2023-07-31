@@ -1,5 +1,5 @@
 # rrcm
-[![Actions Status](https://github.com/mizuki0629/rrcm/actions/workflows/rust.yml/badge.svg)](https://github.com/mizuki0629/rrcm/actions)
+[![Lint and Test](https://github.com/mizuki0629/rrcm/actions/workflows/rust.yml/badge.svg)](https://github.com/mizuki0629/rrcm/actions/workflows/rust.yml)
  [![Crates.io](https://img.shields.io/crates/v/rrcm.svg)](https://crates.io/crates/rrcm) [![docs.rs](https://docs.rs/rrcm/badge.svg)](https://docs.rs/rrcm/)
  
 Rust RC file Management commands.
