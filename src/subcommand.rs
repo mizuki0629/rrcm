@@ -143,7 +143,7 @@ where
 
     let app_config = appconfig::load_config(managed_path)?;
     for deploy_path in get_deploy_paths(managed_path, &app_config)? {
-        if deploy_path.from == abs_from.parent().unwrap() {
+        if fs::absolutize(deploy_path.from)? == abs_from.parent().unwrap() {
             let to = deploy_path.to.join(from.file_name().unwrap());
 
             match get_status(from, &to) {
