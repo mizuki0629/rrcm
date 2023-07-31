@@ -27,13 +27,13 @@ enum DeployStatus {
 }
 impl PartialEq for DeployStatus {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (DeployStatus::UnDeployed, DeployStatus::UnDeployed) => true,
-            (DeployStatus::Deployed, DeployStatus::Deployed) => true,
-            (DeployStatus::UnManaged, DeployStatus::UnManaged) => true,
-            (DeployStatus::Conflict { .. }, DeployStatus::Conflict { .. }) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (DeployStatus::UnDeployed, DeployStatus::UnDeployed)
+                | (DeployStatus::Deployed, DeployStatus::Deployed)
+                | (DeployStatus::UnManaged, DeployStatus::UnManaged)
+                | (DeployStatus::Conflict { .. }, DeployStatus::Conflict { .. })
+        )
     }
 }
 
@@ -89,7 +89,7 @@ where
 
     if !to.as_ref().is_symlink() {
         return DeployStatus::Conflict {
-            cause: format!("Not symlink."),
+            cause: "Not symlink.".to_string(),
         };
     }
 
@@ -99,7 +99,8 @@ where
             cause: format!("Different symlink to {}.", abs_to_link.to_string_lossy()),
         };
     }
-    return DeployStatus::Deployed;
+
+    DeployStatus::Deployed
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -222,7 +223,7 @@ fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
             deploy_path.to.to_string_lossy()
         );
     }
-    println!("");
+    println!();
 }
 
 fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatus) -> Result<()> {
@@ -241,7 +242,7 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 /// Show status of files.
@@ -304,10 +305,10 @@ where
         if lookup.contains_key(&s) {
             print_status_description(&s);
             print_status(&lookup, s)?;
-            println!("");
+            println!();
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 pub fn init<P>(path: P) -> Result<()>
@@ -315,5 +316,5 @@ where
     P: AsRef<Path>,
 {
     appconfig::init_config(&path)?;
-    return Ok(());
+    Ok(())
 }

@@ -12,7 +12,7 @@ pub struct OsPath {
     linux: Option<String>,
 }
 impl OsPath {
-    pub fn to_pathbuf(self: &Self) -> Result<PathBuf> {
+    pub fn to_pathbuf(&self) -> Result<PathBuf> {
         #[cfg(target_os = "windows")]
         {
             let Some(path) = &self.windows else {

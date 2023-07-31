@@ -1,28 +1,31 @@
 //! File system utilities.
-use anyhow;
+use anyhow::Result;
 use dunce::simplified;
-use path_abs;
+use path_abs::PathAbs;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use trash;
+use trash::delete;
+
+#[cfg(target_os = "windows")]
+use anyhow::anyhow;
 
 #[allow(dead_code)]
-pub fn canonicalize<P>(path: P) -> anyhow::Result<PathBuf>
+pub fn canonicalize<P>(path: P) -> Result<PathBuf>
 where
     P: AsRef<Path>,
 {
-    return Ok(simplified(fs::canonicalize(path)?.as_path()).to_path_buf());
+    Ok(simplified(fs::canonicalize(path)?.as_path()).to_path_buf())
 }
 
-pub fn absolutize<P>(path: P) -> anyhow::Result<PathBuf>
+pub fn absolutize<P>(path: P) -> Result<PathBuf>
 where
     P: AsRef<Path>,
 {
-    return Ok(simplified(path_abs::PathAbs::new(path)?.as_path()).to_path_buf());
+    Ok(simplified(PathAbs::new(path)?.as_path()).to_path_buf())
 }
 
-pub fn symlink<P, Q>(from: P, to: Q) -> anyhow::Result<()>
+pub fn symlink<P, Q>(from: P, to: Q) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -30,7 +33,7 @@ where
     #[cfg(target_family = "unix")]
     {
         std::os::unix::fs::symlink(from, to)?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "windows")]
@@ -38,23 +41,23 @@ where
         let from = from.as_ref();
         if from.is_file() {
             std::os::windows::fs::symlink_file(from, to)?;
-            return Ok(());
+            Ok(())
         } else if from.is_dir() {
             std::os::windows::fs::symlink_dir(from, to)?;
-            return Ok(());
+            Ok(())
         } else {
-            return Err(anyhow::anyhow!(
+            Err(anyhow!(
                 "Can not deploy. {:?} is not file or directory.",
                 from
-            ));
+            ))
         }
     }
 }
 
-pub fn remove<P>(path: P) -> anyhow::Result<()>
+pub fn remove<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    trash::delete(path)?;
+    delete(path)?;
     Ok(())
 }
