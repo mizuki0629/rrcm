@@ -3,4 +3,4 @@ mod fs;
 mod path;
 mod subcommand;
 
-pub use subcommand::{ init, deploy, status };
+pub use subcommand::{deploy, init, status};

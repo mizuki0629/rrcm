@@ -7,7 +7,7 @@
 //! and different path separator (e.g. C:\Users\username\foo\bar.txt)
 use anyhow::Context as _;
 use anyhow::{bail, Ok, Result};
-use dirs;
+use dirs::{cache_dir, config_dir, data_dir, runtime_dir, state_dir};
 use std::path::PathBuf;
 
 /// Get default path of XDG Base Directory
@@ -24,19 +24,19 @@ fn get_xdg_default(s: &str) -> Result<String> {
     let mut path = PathBuf::new();
     match s {
         "XDG_CONFIG_HOME" => {
-            path.push(dirs::config_dir().unwrap());
+            path.push(config_dir().unwrap());
         }
         "XDG_DATA_HOME" => {
-            path.push(dirs::data_dir().unwrap());
+            path.push(data_dir().unwrap());
         }
         "XDG_CACHE_HOME" => {
-            path.push(dirs::cache_dir().unwrap());
+            path.push(cache_dir().unwrap());
         }
         "XDG_RUNTIME_DIR" => {
-            path.push(dirs::runtime_dir().unwrap());
+            path.push(runtime_dir().unwrap());
         }
         "XDG_STATE_HOME" => {
-            path.push(dirs::state_dir().unwrap());
+            path.push(state_dir().unwrap());
         }
         _ => bail!("invalid XDG Base Directory: {}", s),
     }
@@ -51,14 +51,14 @@ fn get_xdg_default(s: &str) -> Result<String> {
 /// - XDG_RUNTIME_DIR
 /// - XDG_STATE_HOME
 fn is_xdg_base_directory(s: &str) -> bool {
-    match s {
-        "XDG_CONFIG_HOME" => true,
-        "XDG_DATA_HOME" => true,
-        "XDG_CACHE_HOME" => true,
-        "XDG_RUNTIME_DIR" => true,
-        "XDG_STATE_HOME" => true,
-        _ => false,
-    }
+    matches!(
+        s,
+        "XDG_CONFIG_HOME"
+            | "XDG_DATA_HOME"
+            | "XDG_CACHE_HOME"
+            | "XDG_RUNTIME_DIR"
+            | "XDG_STATE_HOME"
+    )
 }
 
 /// Expand environment variable in String
@@ -68,6 +68,8 @@ fn is_xdg_base_directory(s: &str) -> bool {
 pub fn expand_env_var(s: &str) -> Result<String> {
     let mut result = String::new();
     let mut chars = s.chars();
+
+    #[allow(clippy::while_let_on_iterator)]
     while let Some(c) = chars.next() {
         if c == '$' {
             if let Some(c) = chars.next() {
@@ -116,7 +118,10 @@ mod tests {
     fn test_expand_env_var() {
         let s = "${HOME}/.config";
         let result = expand_env_var(s).unwrap();
-        assert_eq!(result, format!("{}/.config", std::env::var("HOME").unwrap()));
+        assert_eq!(
+            result,
+            format!("{}/.config", std::env::var("HOME").unwrap())
+        );
 
         let s = "${XDG_CONFIG_HOME}/.config";
         let result = expand_env_var(s).unwrap();
@@ -134,7 +139,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-
     #[test]
     fn test_is_xdg_base_directory() {
         assert!(is_xdg_base_directory("XDG_CONFIG_HOME"));
@@ -146,10 +150,16 @@ mod tests {
     #[test]
     fn test_get_xdg_default() {
         let result = get_xdg_default("XDG_CONFIG_HOME").unwrap();
-        assert_eq!(result, format!("{}/.config", std::env::var("HOME").unwrap()));
+        assert_eq!(
+            result,
+            format!("{}/.config", std::env::var("HOME").unwrap())
+        );
 
         let result = get_xdg_default("XDG_DATA_HOME").unwrap();
-        assert_eq!(result, format!("{}/.local/share", std::env::var("HOME").unwrap()));
+        assert_eq!(
+            result,
+            format!("{}/.local/share", std::env::var("HOME").unwrap())
+        );
 
         let result = get_xdg_default("XDG_CACHE_HOME").unwrap();
         assert_eq!(result, format!("{}/.cache", std::env::var("HOME").unwrap()));

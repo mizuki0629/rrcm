@@ -4,45 +4,36 @@
 //! Each subcommand is implemented as a function.
 use crate::appconfig;
 use crate::fs;
+use anyhow::{bail, Context as _, Ok, Result};
 use core::fmt::{self, Display};
 use core::hash::Hash;
-use anyhow::{bail, Context as _, Ok, Result};
+use crossterm::{
+    style::{Color, Print, ResetColor, SetForegroundColor},
+    ExecutableCommand,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap};
-use std::ffi::OsString;
+use std::collections::HashMap;
 use std::fs::{read_dir, read_link};
+use std::io::stdout;
 use std::path::{Path, PathBuf};
-
-#[cfg(target_family = "unix")]
-use termion::color;
-
-fn create_filemap(path: &Path) -> Result<HashMap<OsString, PathBuf>> {
-    let mut dst: HashMap<_, _> = HashMap::new();
-    for entry in read_dir(path)?.filter_map(|e| e.ok()) {
-        dst.insert(entry.file_name(), entry.path());
-    }
-    Ok(dst)
-}
 
 #[derive(Debug, Eq, Clone)]
 enum DeployStatus {
     UnDeployed,
     Deployed,
-    Conflict {
-        cause: String,
-    },
+    Conflict { cause: String },
     UnManaged,
 }
 impl PartialEq for DeployStatus {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (DeployStatus::UnDeployed, DeployStatus::UnDeployed) => true,
-            (DeployStatus::Deployed, DeployStatus::Deployed) => true,
-            (DeployStatus::UnManaged, DeployStatus::UnManaged) => true,
-            (DeployStatus::Conflict { .. }, DeployStatus::Conflict { .. }) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (DeployStatus::UnDeployed, DeployStatus::UnDeployed)
+                | (DeployStatus::Deployed, DeployStatus::Deployed)
+                | (DeployStatus::UnManaged, DeployStatus::UnManaged)
+                | (DeployStatus::Conflict { .. }, DeployStatus::Conflict { .. })
+        )
     }
 }
 
@@ -98,17 +89,18 @@ where
 
     if !to.as_ref().is_symlink() {
         return DeployStatus::Conflict {
-            cause: format!("Not symlink."),
+            cause: "Not symlink.".to_string(),
         };
     }
 
     let abs_to_link = fs::absolutize(read_link(to).unwrap()).unwrap();
     if fs::absolutize(from).unwrap() != abs_to_link {
         return DeployStatus::Conflict {
-            cause: format!("Symlink to a different destination. {:?}", abs_to_link),
+            cause: format!("Different symlink to {}.", abs_to_link.to_string_lossy()),
         };
     }
-    return DeployStatus::Deployed;
+
+    DeployStatus::Deployed
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -225,35 +217,32 @@ fn print_status_description(s: &DeployStatus) {
 fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
     println!("Deploy From => To ");
     for deploy_path in deploy_paths {
-        println!("    {:?} => {:?}", deploy_path.from, deploy_path.to);
+        println!(
+            "    {} => {}",
+            deploy_path.from.to_string_lossy(),
+            deploy_path.to.to_string_lossy()
+        );
     }
-    println!("");
+    println!();
 }
 
 fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatus) -> Result<()> {
     if let Some(l) = lookup.get(&status) {
         for ff in l {
-            #[cfg(target_family = "unix")]
-            println!(
-                "{}{:>12} {}{:}",
-                match status {
-                    DeployStatus::Deployed => color::Fg(color::Green).to_string(),
-                    DeployStatus::UnDeployed => color::Fg(color::Yellow).to_string(),
-                    DeployStatus::UnManaged =>
-                        color::Fg(color::AnsiValue::grayscale(12)).to_string(),
-                    DeployStatus::Conflict { .. } => color::Fg(color::Red).to_string(),
-                },
-                format!("{:}", status),
-                color::Fg(color::Reset),
-                ff
-            );
-
-            #[cfg(not(target_family = "unix"))]
-            println!("{:>12} {:}", format!("{:}", status), ff);
+            stdout()
+                .execute(match status {
+                    DeployStatus::Deployed => SetForegroundColor(Color::Green),
+                    DeployStatus::UnDeployed => SetForegroundColor(Color::Yellow),
+                    DeployStatus::Conflict { .. } => SetForegroundColor(Color::Red),
+                    DeployStatus::UnManaged => SetForegroundColor(Color::Grey),
+                })?
+                .execute(Print(format!("{:>12}", format!("{:}", status))))?
+                .execute(ResetColor)?
+                .execute(Print(format!(" {}\n", ff)))?;
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 /// Show status of files.
@@ -276,38 +265,32 @@ where
 
     let lookup = deploy_paths
         .iter()
-        .map(|deploy_path| {
-            let from_files = create_filemap(&deploy_path.from).unwrap();
-            let to_files = create_filemap(&deploy_path.to).unwrap();
+        .filter_map(|deploy_path| {
+            Some(
+                read_dir(&deploy_path.from)
+                    .ok()?
+                    .filter_map(|from| {
+                        let from = from.ok()?.path();
+                        let to = deploy_path.to.join(from.file_name()?);
+                        let s = get_status(&from, &to);
+                        let ff = match &s {
+                            DeployStatus::Deployed => {
+                                format!("{:} => {:}", from.to_string_lossy(), to.to_string_lossy())
+                            }
+                            DeployStatus::UnDeployed => format!("{:}", from.to_string_lossy()),
+                            DeployStatus::UnManaged => format!("{:}", to.to_string_lossy()),
+                            DeployStatus::Conflict { cause } => format!(
+                                "{:} => {:} ({:})",
+                                from.to_string_lossy(),
+                                to.to_string_lossy(),
+                                cause,
+                            ),
+                        };
 
-            from_files
-                .keys()
-                .chain(to_files.keys())
-                .collect::<BTreeSet<_>>()
-                .iter()
-                .map(|f| {
-                    let from = from_files.get(*f);
-                    let to = to_files.get(*f);
-                    let s = get_status_impl(from, to);
-                    let ff = match &s {
-                        DeployStatus::Deployed => format!(
-                            "{:} => {:}",
-                            from.unwrap().to_str().unwrap(),
-                            to.unwrap().to_str().unwrap()
-                        ),
-                        DeployStatus::UnDeployed => format!("{:}", from.unwrap().to_str().unwrap()),
-                        DeployStatus::UnManaged => format!("{:}", to.unwrap().to_str().unwrap()),
-                        DeployStatus::Conflict { cause } => format!(
-                            "{:} => {:} ({:})",
-                            from.unwrap().to_str().unwrap(),
-                            to.unwrap().to_str().unwrap(),
-                            cause,
-                        ),
-                    };
-
-                    (s, ff)
-                })
-                .collect_vec()
+                        Some((s, ff))
+                    })
+                    .collect_vec(),
+            )
         })
         .flatten()
         .into_group_map();
@@ -315,15 +298,17 @@ where
     for s in vec![
         DeployStatus::Deployed,
         DeployStatus::UnDeployed,
-        DeployStatus::Conflict { cause: "".to_string() },
+        DeployStatus::Conflict {
+            cause: "".to_string(),
+        },
     ] {
         if lookup.contains_key(&s) {
             print_status_description(&s);
             print_status(&lookup, s)?;
-            println!("");
+            println!();
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 pub fn init<P>(path: P) -> Result<()>
@@ -331,5 +316,5 @@ where
     P: AsRef<Path>,
 {
     appconfig::init_config(&path)?;
-    return Ok(());
+    Ok(())
 }

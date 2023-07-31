@@ -5,7 +5,7 @@
 //! and different path separator (e.g. C:\Users\username\foo\bar.txt)
 use anyhow::Context as _;
 use anyhow::{bail, Ok, Result};
-use dirs;
+use dirs::{config_dir, config_local_dir, desktop_dir, document_dir};
 use std::path::PathBuf;
 
 /// Get path of known folder
@@ -14,30 +14,26 @@ use std::path::PathBuf;
 /// - FOLDERID_Documents
 /// - FOLDERID_LocalAppData
 /// - FOLDERID_RoamingAppData
-/// - FOLDERID_ProgramData
 /// https://docs.microsoft.com/ja-jp/windows/win32/shell/knownfolderid
 fn get_known_folder(s: &str) -> Result<String> {
     let mut path = PathBuf::new();
     match s {
         "FOLDERID_Desktop" => {
-            path.push(dirs::desktop_dir().unwrap());
+            path.push(desktop_dir().unwrap());
         }
         "FOLDERID_Documents" => {
-            path.push(dirs::document_dir().unwrap());
+            path.push(document_dir().unwrap());
         }
         "FOLDERID_LocalAppData" => {
-            path.push(dirs::data_local_dir().unwrap());
+            path.push(config_local_dir().unwrap());
         }
         "FOLDERID_RoamingAppData" => {
-            path.push(dirs::data_dir().unwrap());
-        }
-        "FOLDERID_ProgramData" => {
-            path.push(dirs::data_local_dir().unwrap());
+            path.push(config_dir().unwrap());
         }
         _ => bail!("invalid KNOWNFOLDERID: {}", s),
     }
     Ok(path.to_str().unwrap().to_string())
-} 
+}
 
 /// Check if the specified string is knownfolderid
 /// KNOWNFOLDERID is one of the following:
@@ -45,18 +41,15 @@ fn get_known_folder(s: &str) -> Result<String> {
 /// - FOLDERID_Documents
 /// - FOLDERID_LocalAppData
 /// - FOLDERID_RoamingAppData
-/// - FOLDERID_ProgramData
-/// - FOLDERID_Profiles
 /// https://docs.microsoft.com/ja-jp/windows/win32/shell/knownfolderid
 fn is_known_folder_id(s: &str) -> bool {
-    match s {
-        "FOLDERID_Desktop" => true,
-        "FOLDERID_Documents" => true,
-        "FOLDERID_LocalAppData" => true,
-        "FOLDERID_RoamingAppData" => true,
-        "FOLDERID_ProgramData" => true,
-        _ => false,
-    }
+    matches!(
+        s,
+        "FOLDERID_Desktop"
+            | "FOLDERID_Documents"
+            | "FOLDERID_LocalAppData"
+            | "FOLDERID_RoamingAppData"
+    )
 }
 
 /// Expand environment variable on windows
@@ -66,6 +59,8 @@ fn is_known_folder_id(s: &str) -> bool {
 pub fn expand_env_var(s: &str) -> Result<String> {
     let mut result = String::new();
     let mut chars = s.chars();
+
+    #[allow(clippy::while_let_on_iterator)]
     while let Some(c) = chars.next() {
         if c == '%' {
             let mut varname = String::new();
