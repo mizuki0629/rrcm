@@ -1,8 +1,8 @@
 use crate::path::expand_env_var;
 use anyhow::{bail, ensure, Context as _, Ok, Result};
-use maplit::hashmap;
+use maplit::btreemap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -41,12 +41,12 @@ impl OsPath {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub deploy: HashMap<String, OsPath>,
+    pub deploy: BTreeMap<String, OsPath>,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        let deploy = hashmap!(
+        let deploy = btreemap!(
             String::from("home") => OsPath {
                 windows: Some("%USERPROFILE%".to_string()),
                 mac: Some("${HOME}".to_string()),

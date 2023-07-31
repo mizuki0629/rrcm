@@ -64,39 +64,27 @@ where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    get_status_impl(
-        from.as_ref().exists().then_some(from),
-        to.as_ref().exists().then_some(to),
-    )
-}
-
-// 存在するか       Y Y Y N
-// Link             Y Y N /
-// Link先が正しいか Y N / /
-// ------------------------
-//                  T F F F
-fn get_status_impl<P, Q>(from: Option<P>, to: Option<Q>) -> DeployStatus
-where
-    P: AsRef<Path>,
-    Q: AsRef<Path>,
-{
-    let Some(from) = from else {
+    let Some(from) = from.as_ref().exists().then_some(from) else {
         return DeployStatus::UnManaged;
-    };
-    let Some(to) = to else {
-        return DeployStatus::UnDeployed;
     };
 
     if !to.as_ref().is_symlink() {
-        return DeployStatus::Conflict {
-            cause: "Not symlink.".to_string(),
-        };
+        if to.as_ref().exists() {
+            return DeployStatus::Conflict {
+                cause: "Other file exists.".to_string(),
+            };
+        } else {
+            return DeployStatus::UnDeployed;
+        }
     }
 
     let abs_to_link = fs::absolutize(read_link(to).unwrap()).unwrap();
     if fs::absolutize(from).unwrap() != abs_to_link {
         return DeployStatus::Conflict {
-            cause: format!("Different symlink to {}.", abs_to_link.to_string_lossy()),
+            cause: format!(
+                "Symlink to different path. {}",
+                abs_to_link.to_string_lossy()
+            ),
         };
     }
 
@@ -149,7 +137,10 @@ where
     let managed_path = path
         .as_ref()
         .parent()
+        .with_context(|| format!("Can not get parent directory of {:?}", path.as_ref()))?
+        .parent()
         .with_context(|| format!("Can not get parent directory of {:?}", path.as_ref()))?;
+
     let app_config = appconfig::load_config(managed_path)?;
     for deploy_path in get_deploy_paths(managed_path, &app_config)? {
         if deploy_path.from == abs_from.parent().unwrap() {
@@ -195,13 +186,7 @@ fn print_status_description(s: &DeployStatus) {
             println!("Files can deploy:");
             println!("  (use \"{:} deploy <PATH>...\" to deploy files)", pkg_name);
         }
-        DeployStatus::UnManaged => {
-            println!("Files are not managed:");
-            println!(
-                "  (use \"{:} add <PATH>...\" to manage and deploy files)",
-                pkg_name
-            );
-        }
+        DeployStatus::UnManaged => {}
         DeployStatus::Conflict { .. } => {
             println!("Files can not deploy:");
             println!("  (already exists other file at deploy path.)");
@@ -214,13 +199,36 @@ fn print_status_description(s: &DeployStatus) {
     }
 }
 
-fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
+fn strip_home<P>(path: P) -> PathBuf
+where
+    P: AsRef<Path>,
+{
+    if let Some(home) = dirs::home_dir() {
+        let path = path.as_ref();
+        if let std::result::Result::Ok(path) = path.strip_prefix(&home) {
+            PathBuf::from("~").join(path)
+        } else {
+            path.to_path_buf()
+        }
+    } else {
+        path.as_ref().to_path_buf()
+    }
+}
+
+fn print_deploy_paths<P>(path: P, deploy_paths: &Vec<DeployPath>)
+where
+    P: AsRef<Path>,
+{
     println!("Deploy From => To ");
     for deploy_path in deploy_paths {
         println!(
-            "    {} => {}",
-            deploy_path.from.to_string_lossy(),
-            deploy_path.to.to_string_lossy()
+            "    {:<20} => {:<20}",
+            deploy_path
+                .from
+                .strip_prefix(&path)
+                .unwrap()
+                .to_string_lossy(),
+            strip_home(&deploy_path.to).to_string_lossy()
         );
     }
     println!();
@@ -228,7 +236,7 @@ fn print_deploy_paths(deploy_paths: &Vec<DeployPath>) {
 
 fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatus) -> Result<()> {
     if let Some(l) = lookup.get(&status) {
-        for ff in l {
+        for ff in l.iter().sorted() {
             stdout()
                 .execute(match status {
                     DeployStatus::Deployed => SetForegroundColor(Color::Green),
@@ -247,7 +255,7 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
 
 /// Show status of files.
 /// # Arguments
-/// * `all` - Show all files.
+/// * `path` - Path to deploy directory.
 /// # Example
 /// ```sh
 /// $ rrcm status
@@ -255,13 +263,13 @@ fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatu
 /// ```sh
 /// $ rrcm status -a
 /// ```
-pub fn status<P>(path: P, _all: bool) -> Result<()>
+pub fn status<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
     let app_config = appconfig::load_config(&path)?;
-    let deploy_paths = get_deploy_paths(path, &app_config)?;
-    print_deploy_paths(&deploy_paths);
+    let deploy_paths = get_deploy_paths(&path, &app_config)?;
+    print_deploy_paths(&path, &deploy_paths);
 
     let lookup = deploy_paths
         .iter()
@@ -273,18 +281,23 @@ where
                         let from = from.ok()?.path();
                         let to = deploy_path.to.join(from.file_name()?);
                         let s = get_status(&from, &to);
+
+                        let from_str = from.strip_prefix(&path).ok()?.to_string_lossy();
+                        let to = strip_home(&to);
+                        let to_str = to.to_string_lossy();
+
                         let ff = match &s {
                             DeployStatus::Deployed => {
-                                format!("{:} => {:}", from.to_string_lossy(), to.to_string_lossy())
+                                format!("{:<20} => {:<20}", from_str, to_str)
                             }
-                            DeployStatus::UnDeployed => format!("{:}", from.to_string_lossy()),
-                            DeployStatus::UnManaged => format!("{:}", to.to_string_lossy()),
-                            DeployStatus::Conflict { cause } => format!(
-                                "{:} => {:} ({:})",
-                                from.to_string_lossy(),
-                                to.to_string_lossy(),
-                                cause,
-                            ),
+                            DeployStatus::UnDeployed => format!("{:}", from_str),
+                            DeployStatus::UnManaged => format!("{:}", to_str),
+                            DeployStatus::Conflict { cause } => {
+                                format!(
+                                    "{:<20} => {:<20}\n             ({:})",
+                                    from_str, to_str, cause,
+                                )
+                            }
                         };
 
                         Some((s, ff))
@@ -311,6 +324,13 @@ where
     Ok(())
 }
 
+/// Initialize config file.
+/// # Arguments
+/// * `path` - Path to deploy directory.
+/// # Example
+/// ```sh
+/// $ rrcm init .
+/// ```
 pub fn init<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,

@@ -69,14 +69,13 @@ pub fn expand_env_var(s: &str) -> Result<String> {
     let mut result = String::new();
     let mut chars = s.chars();
 
-    #[allow(clippy::while_let_on_iterator)]
     while let Some(c) = chars.next() {
         if c == '$' {
             if let Some(c) = chars.next() {
                 if c == '{' {
                     let mut varname = String::new();
                     let mut is_end = false;
-                    while let Some(c) = chars.next() {
+                    for c in chars.by_ref() {
                         if c == '}' {
                             is_end = true;
                             break;

@@ -19,17 +19,13 @@ struct Args {
 enum SubCommands {
     /// Initialize config file.
     Init {
-        /// Print all status
         #[clap(required = true, ignore_case = true)]
         path: PathBuf,
     },
     /// Print deploy status.
     Status {
-        /// Print all status
         #[clap(required = true, ignore_case = true)]
         path: PathBuf,
-        #[clap(short, long, default_value_t = false)]
-        all: bool,
     },
     /// Deploy file or folder.
     Deploy {
@@ -45,7 +41,7 @@ enum SubCommands {
 fn main() -> Result<()> {
     match Args::parse().subcommand {
         SubCommands::Init { path } => rrcm::init(path),
-        SubCommands::Status { path, all } => rrcm::status(path, all),
+        SubCommands::Status { path } => rrcm::status(path),
         SubCommands::Deploy { path, force } => {
             for p in path {
                 rrcm::deploy(&p, force)?
