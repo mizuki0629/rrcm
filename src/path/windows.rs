@@ -43,13 +43,13 @@ fn get_known_folder(s: &str) -> Result<String> {
 /// - FOLDERID_RoamingAppData
 /// https://docs.microsoft.com/ja-jp/windows/win32/shell/knownfolderid
 fn is_known_folder_id(s: &str) -> bool {
-    match s {
-        "FOLDERID_Desktop" => true,
-        "FOLDERID_Documents" => true,
-        "FOLDERID_LocalAppData" => true,
-        "FOLDERID_RoamingAppData" => true,
-        _ => false,
-    }
+    matches!(
+        s,
+        "FOLDERID_Desktop"
+            | "FOLDERID_Documents"
+            | "FOLDERID_LocalAppData"
+            | "FOLDERID_RoamingAppData"
+    )
 }
 
 /// Expand environment variable on windows
@@ -59,6 +59,8 @@ fn is_known_folder_id(s: &str) -> bool {
 pub fn expand_env_var(s: &str) -> Result<String> {
     let mut result = String::new();
     let mut chars = s.chars();
+
+    #[allow(clippy::while_let_on_iterator)]
     while let Some(c) = chars.next() {
         if c == '%' {
             let mut varname = String::new();
