@@ -7,7 +7,7 @@
 //! and different path separator (e.g. C:\Users\username\foo\bar.txt)
 use anyhow::Context as _;
 use anyhow::{bail, Ok, Result};
-use dirs::{config_dir, data_dir, cache_dir, runtime_dir, state_dir};
+use dirs::{cache_dir, config_dir, data_dir, runtime_dir, state_dir};
 use std::path::PathBuf;
 
 /// Get default path of XDG Base Directory
@@ -51,7 +51,14 @@ fn get_xdg_default(s: &str) -> Result<String> {
 /// - XDG_RUNTIME_DIR
 /// - XDG_STATE_HOME
 fn is_xdg_base_directory(s: &str) -> bool {
-    matches!(s, "XDG_CONFIG_HOME" | "XDG_DATA_HOME" | "XDG_CACHE_HOME" | "XDG_RUNTIME_DIR" | "XDG_STATE_HOME")
+    matches!(
+        s,
+        "XDG_CONFIG_HOME"
+            | "XDG_DATA_HOME"
+            | "XDG_CACHE_HOME"
+            | "XDG_RUNTIME_DIR"
+            | "XDG_STATE_HOME"
+    )
 }
 
 /// Expand environment variable in String
