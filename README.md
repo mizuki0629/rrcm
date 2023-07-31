@@ -40,7 +40,7 @@ git clone <your dotfiles repo>
 rrcm init <your dotfiles repo>
 ```
 
-Default setting
+Default setting (rrcm.toml)
 ```toml
 # deploy path for dotfiles/home
 [deploy.home]
@@ -50,6 +50,7 @@ linux = '${HOME}'
 
 # deploy path for dotfiles/config
 [deploy.config]
+# windows can use Known Folder
 windows = '%FOLDERID_RoamingAppData%'
 mac = '${XDG_CONFIG_HOME}'
 linux = '${XDG_CONFIG_HOME}'
@@ -60,13 +61,24 @@ windows = '%FOLDERID_LocalAppData%'
 mac = '${XDG_CONFIG_HOME}'
 linux = '${XDG_CONFIG_HOME}'
 
-# you can define more directories
+# you can add more directories
 ```
 
 ## Deploy files
 ```sh
 # deploy under dtifles/config
+# will create symlync
+# on windows, need administrator privilege
 rrcm deploy <your dotfiles repo>/config/*
+# deploy under dtifles/home
 rrcm deploy <your dotfiles repo>/home/*
+...
+```
+
+On Windows, need administrator privilege.
+
+if you installed [gsudo](https://github.com/gerardog/gsudo).
+```sh
+sudo rrcm deploy <your dotfiles repo>/config/*
 ...
 ```
