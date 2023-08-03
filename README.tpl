@@ -3,5 +3,3 @@
 {{badges}}
 
 {{readme}}
-
-License: {{license}}

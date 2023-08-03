@@ -2,7 +2,7 @@
 name = "rrcm"
 version = "0.3.0"
 edition = "2021"
-license = "MIT"
+license-file = "LICENSE"
 description = "Rust RC file Management commands"
 repository = "https://github.com/mizuki0629/rrcm"
 readme = "README.md"
@@ -25,4 +25,4 @@ crossterm = "0.26.1"
 url = { version = "2.4.0", features = ["serde"] }
 
 [badges]
-github = { repository = "mizuki0629/rrcm" }
+github = { repository = "mizuki0629/rrcm" , workflow = "Lint and Test" }

@@ -1,6 +1,6 @@
 # rrcm
 [![Crates.io](https://img.shields.io/crates/v/rrcm.svg)](https://crates.io/crates/rrcm)
-[![Workflow Status](https://github.com/mizuki0629/rrcm/workflows/main/badge.svg)](https://github.com/mizuki0629/rrcm/actions?query=workflow%3A%22main%22)
+[![Workflow Status](https://github.com/mizuki0629/rrcm/workflows/Lint%20and%20Test/badge.svg)](https://github.com/mizuki0629/rrcm/actions?query=workflow%3A%22Lint%2Band%2BTest%22)
 
 ### Introduction
 - Deploy configuration files and directories using symbolic links.
@@ -53,6 +53,7 @@ home, config, config_local are the deployment targets.
 - home: Deploy to $HOME(Unix), %PROFILE%(Win)
 - config: Deploy to $HOME/.config(Unix), %PROFILE%\AppData\Roaming(Win)
 - config_local: Deploy to $HOME/.config/local(Unix), %PROFILE%\AppData\Local(Win)
+
 Under the deployment target, the file or directory is deployed by symbolic link.
 **Windows needs to be run as administrator.**
 
@@ -75,21 +76,23 @@ mac = '${HOME}'
 linux = '${HOME}'
 ```
 
-#### Environment variables
-The following environment variables are available.
-Special variables are available on each OS.
+Environment variables can be used in the deployment target.
+Format
+- Unix: ${ENVIRONMENT_VARIABLE_NAME}
+- Windows: %ENVIRONMENT_VARIABLE_NAME%
 
+The following special variables are available.
+- Unix [XDG base directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)
+    if the environment variable is not set, the default value is used.
+    - ${XDG_CONFIG_HOME}
+    - ${XDG_DATA_HOME}
+    - ${XDG_CACHE_HOME}
+    - ${XDG_RUNTIME_DIR}
 - Windows [Known Folder ID](https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid)
     - %FOLDERID_RoamingAppData%
     - %FOLDERID_LocalAppData%
     - %FOLDERID_Documents%
     - %FOLDERID_Desktop%
-
-- Unix [XDG base directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)
-    - $XDG_CONFIG_HOME
-    - $XDG_DATA_HOME
-    - $XDG_CACHE_HOME
-    - $XDG_RUNTIME_DIR
 
 ### Examples
 ```sh
@@ -100,5 +103,3 @@ rrcm update
 rrcm status
 ```
 
-
-License: MIT
