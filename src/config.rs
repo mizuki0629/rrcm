@@ -1,9 +1,9 @@
 use crate::path::expand_env_var;
-use anyhow::{bail, ensure, Context as _, Ok, Result};
+use anyhow::{bail, Ok, Result};
 use maplit::btreemap;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OsPath {
@@ -41,11 +41,19 @@ impl OsPath {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
+    pub dotfiles: OsPath,
     pub deploy: BTreeMap<String, OsPath>,
+    pub repos: BTreeMap<String, String>,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
+        let dotfiles = OsPath {
+            windows: Some("%USERPROFILE%\\dotfiles".to_string()),
+            mac: Some("${HOME}/.dotfiles".to_string()),
+            linux: Some("${HOME}/.dotfiles".to_string()),
+        };
+
         let deploy = btreemap!(
             String::from("home") => OsPath {
                 windows: Some("%USERPROFILE%".to_string()),
@@ -64,30 +72,27 @@ impl Default for AppConfig {
             },
         );
 
-        Self { deploy }
+        let repos = BTreeMap::new();
+
+        Self {
+            dotfiles,
+            deploy,
+            repos,
+        }
     }
 }
 
-pub fn init_config<P>(path: P) -> Result<AppConfig>
-where
-    P: AsRef<Path>,
-{
-    let config_path = path.as_ref().join("rrcm.toml");
-    Ok(confy::load_path(&config_path)
-        .with_context(|| format!("Failed to init {:?}", &config_path))?)
+impl AppConfig {
+    pub fn to_pathbuf(&self) -> Result<PathBuf> {
+        self.dotfiles.to_pathbuf()
+    }
 }
 
-/// Load config from config.toml
-pub fn load_config<P>(path: P) -> Result<AppConfig>
-where
-    P: AsRef<Path>,
-{
-    let config_path = path.as_ref().join("rrcm.toml");
-    ensure!(
-        config_path.exists(),
-        "{:?} is not managed directory.",
-        path.as_ref()
-    );
-    Ok(confy::load_path(&config_path)
-        .with_context(|| format!("Failed to load {:?}", &config_path))?)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Repo {
+    pub url: String,
+}
+
+pub fn load_app_config() -> Result<AppConfig> {
+    Ok(confy::load("rrcm", "config")?)
 }

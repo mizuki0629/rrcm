@@ -617,6 +617,7 @@ dependencies = [
  "path_abs",
  "serde",
  "trash",
+ "url",
 ]
 
 [[package]]
@@ -817,6 +818,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

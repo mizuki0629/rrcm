@@ -2,339 +2,448 @@
 //!
 //! This module contains subcommands.
 //! Each subcommand is implemented as a function.
-use crate::appconfig;
+use crate::config::{self, AppConfig};
+use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
+use crate::path::strip_home;
 use anyhow::{bail, Context as _, Ok, Result};
-use core::fmt::{self, Display};
-use core::hash::Hash;
 use crossterm::{
     style::{Color, Print, ResetColor, SetForegroundColor},
     ExecutableCommand,
 };
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs::{read_dir, read_link};
-use std::io::stdout;
+use std::fs::{read_dir, ReadDir};
+use std::io::{stderr, stdout};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
-#[derive(Debug, Eq, Clone)]
-enum DeployStatus {
-    UnDeployed,
-    Deployed,
-    Conflict { cause: String },
-    UnManaged,
-}
-impl PartialEq for DeployStatus {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (DeployStatus::UnDeployed, DeployStatus::UnDeployed)
-                | (DeployStatus::Deployed, DeployStatus::Deployed)
-                | (DeployStatus::UnManaged, DeployStatus::UnManaged)
-                | (DeployStatus::Conflict { .. }, DeployStatus::Conflict { .. })
-        )
-    }
-}
-
-impl Hash for DeployStatus {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self {
-            DeployStatus::UnDeployed => 0.hash(state),
-            DeployStatus::Deployed => 1.hash(state),
-            DeployStatus::UnManaged => 2.hash(state),
-            DeployStatus::Conflict { .. } => 3.hash(state),
-        }
-    }
+fn create_deploy_path<'a, P>(
+    path: P,
+    app_config: &'a AppConfig,
+) -> impl Iterator<Item = Result<(PathBuf, ReadDir, PathBuf)>> + 'a
+where
+    P: AsRef<Path> + 'a,
+{
+    let path = path.as_ref().to_path_buf();
+    app_config.deploy.iter().map(move |(from_dirname, to)| {
+        let from_path = path.join(PathBuf::from(from_dirname));
+        let from_readdir = read_dir(&from_path).with_context(|| {
+            format!(
+                "Failed to read deploy source directory {:}",
+                from_path.to_string_lossy()
+            )
+        })?;
+        let to_path = to.to_pathbuf().with_context(|| {
+            format!(
+                "Failed to read deploy destination directory \"{:}\"",
+                from_dirname
+            )
+        })?;
+        Ok((from_path, from_readdir, to_path))
+    })
 }
 
-impl Display for DeployStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DeployStatus::UnDeployed => write!(f, "UnDeployed"),
-            DeployStatus::Deployed => write!(f, "Deployed"),
-            DeployStatus::UnManaged => write!(f, "UnManaged"),
-            DeployStatus::Conflict { .. } => write!(f, "Conflict"),
-        }
-    }
+fn create_deploy_status(
+    deploy_status_list: Vec<(PathBuf, ReadDir, PathBuf)>,
+) -> impl Iterator<Item = Result<(DeployStatus, PathBuf, PathBuf)>> {
+    deploy_status_list
+        .into_iter()
+        .flat_map(|(from_path, from_readdir, to_path)| {
+            from_readdir.map(move |entry| {
+                let from = entry
+                    .with_context(|| {
+                        format!(
+                            "Failed to read deploy source directory entry {:}",
+                            from_path.to_string_lossy()
+                        )
+                    })?
+                    .path();
+
+                let to = to_path.join(from.file_name().with_context(|| {
+                    format!("Failed to get file name from {:}", from.to_string_lossy())
+                })?);
+
+                Ok((get_status(&from, &to), from, to))
+            })
+        })
 }
 
-fn get_status<P, Q>(from: P, to: Q) -> DeployStatus
+pub fn print_error(e: &anyhow::Error) {
+    let imp = |e| {
+        stderr()
+            .execute(SetForegroundColor(Color::Red))?
+            .execute(Print("Error: "))?
+            .execute(ResetColor)?
+            .execute(Print(format!("{:?}\n", e)))?;
+        Ok(())
+    };
+    imp(e).expect("Failed to print error");
+}
+
+pub fn print_warn(e: &anyhow::Error) {
+    let imp = |e| {
+        stderr()
+            .execute(SetForegroundColor(Color::Yellow))?
+            .execute(Print("Warn: "))?
+            .execute(ResetColor)?
+            .execute(Print(format!("{:?}\n", e)))?;
+        Ok(())
+    };
+    imp(e).expect("Failed to print error");
+}
+
+fn deploy_impl<P>(path: P, quiet: bool, force: bool) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let deploy_paths = create_deploy_path(path, &config::load_app_config()?)
+        .filter_map(Result::ok)
+        .collect();
+
+    create_deploy_status(deploy_paths)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(status, from, to)| match status {
+            DeployStatus::UnDeployed => {
+                fs::symlink(&from, &to).with_context(|| {
+                    format!(
+                        "Failed to create symlink {:} -> {:}",
+                        from.to_string_lossy(),
+                        to.to_string_lossy()
+                    )
+                })?;
+
+                if !quiet {
+                    print_deploy_status(path, &DeployStatus::Deployed, &from, &to)?;
+                }
+                Ok((from, to))
+            }
+            DeployStatus::Deployed => Ok((from, to)),
+            DeployStatus::Conflict { cause } => {
+                if force {
+                    fs::remove(&to).with_context(|| {
+                        format!("Failed to remove file {:}", to.to_string_lossy())
+                    })?;
+
+                    fs::symlink(&from, &to).with_context(|| {
+                        format!(
+                            "Failed to create symlink {:} -> {:}",
+                            from.to_string_lossy(),
+                            to.to_string_lossy()
+                        )
+                    })?;
+
+                    if !quiet {
+                        print_deploy_status(path, &DeployStatus::Deployed, &from, &to)?;
+                    }
+                    return Ok((from, to));
+                }
+
+                Err(anyhow::anyhow!("{:}", cause).context(format!(
+                    "Failed to deploy {:} -> {:}",
+                    from.to_string_lossy(),
+                    to.to_string_lossy()
+                )))
+            }
+            DeployStatus::UnManaged => {
+                bail!("File not exists {:}", to.to_string_lossy());
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(())
+}
+
+pub fn deploy(repo: Option<String>, quiet: bool, force: bool) -> Result<()> {
+    let app_config = config::load_app_config()?;
+    app_config
+        .repos
+        .iter()
+        .filter(|(name, _)| {
+            // if repo is specified, skip other repo.
+            if let Some(repo) = repo.as_ref() {
+                name == &repo
+            } else {
+                true
+            }
+        })
+        .enumerate()
+        .map(|(index, (name, _))| {
+            let path = app_config.to_pathbuf()?.join(name);
+
+            if !quiet {
+                if index > 0 {
+                    println!();
+                }
+                println!("Deploy {:}", name);
+            }
+
+            // deploy
+            deploy_impl(path, quiet, force)?;
+
+            Ok(())
+        })
+        .for_each(|result| {
+            if let Err(e) = result {
+                print_error(&e);
+            }
+        });
+    Ok(())
+}
+
+fn undeploy_impl<P>(path: P, quiet: bool) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let deploy_paths = create_deploy_path(path, &config::load_app_config()?)
+        .filter_map(Result::ok)
+        .collect();
+
+    create_deploy_status(deploy_paths)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(status, from, to)| match status {
+            DeployStatus::UnDeployed => Ok((from, to)),
+            DeployStatus::Deployed => {
+                fs::remove(&to)
+                    .with_context(|| format!("Failed to remove file {:}", to.to_string_lossy()))?;
+
+                if !quiet {
+                    print_deploy_status(path, &DeployStatus::UnDeployed, &from, &to)?;
+                }
+                Ok((from, to))
+            }
+            DeployStatus::Conflict { .. } => Ok((from, to)),
+            DeployStatus::UnManaged => {
+                bail!("File not exists {:}", to.to_string_lossy());
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(())
+}
+
+pub fn undeploy(repo: Option<String>, quiet: bool) -> Result<()> {
+    let app_config = config::load_app_config()?;
+    app_config
+        .repos
+        .iter()
+        .filter(|(name, _)| {
+            // if repo is specified, skip other repo.
+            if let Some(repo) = repo.as_ref() {
+                name == &repo
+            } else {
+                true
+            }
+        })
+        .enumerate()
+        .map(|(index, (name, _))| {
+            let path = app_config.to_pathbuf()?.join(name);
+
+            if !quiet {
+                if index > 0 {
+                    println!();
+                }
+                println!("UnDeploy {:}", name);
+            }
+
+            // undeploy
+            undeploy_impl(path, quiet)?;
+
+            Ok(())
+        })
+        .for_each(|result| {
+            if let Err(e) = result {
+                print_error(&e);
+            }
+        });
+    Ok(())
+}
+
+fn print_deploy_status<P, Q, R>(path: P, status: &DeployStatus, from: Q, to: R) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
+    R: AsRef<Path>,
 {
-    let Some(from) = from.as_ref().exists().then_some(from) else {
-        return DeployStatus::UnManaged;
-    };
+    stdout()
+        .execute(match status {
+            DeployStatus::Deployed => SetForegroundColor(Color::Green),
+            DeployStatus::UnDeployed => SetForegroundColor(Color::Yellow),
+            DeployStatus::Conflict { .. } => SetForegroundColor(Color::Red),
+            DeployStatus::UnManaged => SetForegroundColor(Color::Grey),
+        })?
+        .execute(Print(format!("{:>12}", format!("{:}", status))))?
+        .execute(ResetColor)?
+        .execute(Print(format!(" {}\n", {
+            let from_str = from.as_ref().strip_prefix(path)?.to_string_lossy();
+            let to = strip_home(&to);
+            let to_str = to.to_string_lossy();
 
-    if !to.as_ref().is_symlink() {
-        if to.as_ref().exists() {
-            return DeployStatus::Conflict {
-                cause: "Other file exists.".to_string(),
-            };
-        } else {
-            return DeployStatus::UnDeployed;
-        }
-    }
-
-    let abs_to_link = fs::absolutize(read_link(to).unwrap()).unwrap();
-    if fs::absolutize(from).unwrap() != abs_to_link {
-        return DeployStatus::Conflict {
-            cause: format!(
-                "Symlink to different path. {}",
-                abs_to_link.to_string_lossy()
-            ),
-        };
-    }
-
-    DeployStatus::Deployed
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct DeployPath {
-    from: PathBuf,
-    to: PathBuf,
-}
-
-fn get_deploy_paths<P>(path: P, app_config: &appconfig::AppConfig) -> Result<Vec<DeployPath>>
-where
-    P: AsRef<Path>,
-{
-    Ok(app_config
-        .deploy
-        .iter()
-        .filter_map(|(dirname, to)| {
-            let from = path.as_ref().join(PathBuf::from(dirname));
-            if !from.exists() {
-                return None;
-            }
-
-            let to = to.to_pathbuf().ok()?;
-            Some(DeployPath { from, to })
-        })
-        .collect::<Vec<DeployPath>>())
-}
-
-/// Deploy Files
-///
-/// # Arguments
-/// * `path` - Path to deploy files
-/// * `force` - Force deploy
-///
-/// # Example
-/// ```sh
-/// $ rrcm deploy .vimrc
-/// ```
-///
-pub fn deploy<P>(path: P, force: bool) -> Result<()>
-where
-    P: AsRef<Path>,
-{
-    let from = path.as_ref();
-    let abs_from = fs::absolutize(from)?;
-
-    let managed_path = path
-        .as_ref()
-        .parent()
-        .with_context(|| format!("Can not get parent directory of {:?}", path.as_ref()))?
-        .parent()
-        .with_context(|| format!("Can not get parent directory of {:?}", path.as_ref()))?;
-
-    let app_config = appconfig::load_config(managed_path)?;
-    for deploy_path in get_deploy_paths(managed_path, &app_config)? {
-        if fs::absolutize(deploy_path.from)? == abs_from.parent().unwrap() {
-            let to = deploy_path.to.join(from.file_name().unwrap());
-
-            match get_status(from, &to) {
-                DeployStatus::UnDeployed => {
-                    fs::symlink(from, &to)?;
-                    return Ok(());
-                }
+            match &status {
                 DeployStatus::Deployed => {
-                    return Ok(());
+                    format!("{:<20}", to_str)
                 }
-                DeployStatus::Conflict { .. } => {
-                    if force {
-                        fs::remove(&to)?;
-                        fs::symlink(from, &to)?;
-                        return Ok(());
-                    }
-                    bail!("Another file exists. {:?}", to);
-                }
-                DeployStatus::UnManaged => {
-                    bail!("File not exists. {:?}", to);
+                DeployStatus::UnDeployed => format!("{:}", from_str),
+                DeployStatus::UnManaged => format!("{:}", to_str),
+                DeployStatus::Conflict { cause } => {
+                    format!("{:<20} {:}", to_str, cause,)
                 }
             }
-
-            #[allow(unreachable_code)]
-            {
-                unreachable!("The loop should always return");
-            }
-        }
-    }
-    bail!("{:?} is not source directory.", abs_from);
+        })))?;
+    Ok(())
 }
 
-fn print_status_description(s: &DeployStatus) {
-    let pkg_name = env!("CARGO_PKG_NAME");
-    match s {
-        DeployStatus::Deployed => {
-            println!("Files deployed:");
-        }
-        DeployStatus::UnDeployed => {
-            println!("Files can deploy:");
-            println!("  (use \"{:} deploy <PATH>...\" to deploy files)", pkg_name);
-        }
-        DeployStatus::UnManaged => {}
-        DeployStatus::Conflict { .. } => {
-            println!("Files can not deploy:");
-            println!("  (already exists other file at deploy path.)");
-            println!("  (you shuld move or delete file manualiy or )");
+fn status_impl<P>(app_config: &AppConfig, path: P, verbose: bool) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let deploy_paths = create_deploy_path(path, app_config)
+        .inspect(|result| {
+            if verbose {
+                if let Err(e) = result {
+                    print_warn(e);
+                }
+            }
+        })
+        .filter_map(Result::ok)
+        .collect_vec();
+
+    if verbose {
+        println!("Deploy From => To ");
+        for (from_path, _, to_path) in &deploy_paths {
             println!(
-                "  (use \"{:} deploy -f <PATH>...\" force deploy files)",
-                pkg_name
+                "    {:<20} => {:<20}",
+                from_path.strip_prefix(path).unwrap().to_string_lossy(),
+                strip_home(to_path).to_string_lossy()
             );
         }
-    }
-}
-
-fn strip_home<P>(path: P) -> PathBuf
-where
-    P: AsRef<Path>,
-{
-    if let Some(home) = dirs::home_dir() {
-        let path = path.as_ref();
-        if let std::result::Result::Ok(path) = path.strip_prefix(&home) {
-            PathBuf::from("~").join(path)
-        } else {
-            path.to_path_buf()
-        }
-    } else {
-        path.as_ref().to_path_buf()
-    }
-}
-
-fn print_deploy_paths<P>(path: P, deploy_paths: &Vec<DeployPath>)
-where
-    P: AsRef<Path>,
-{
-    println!("Deploy From => To ");
-    for deploy_path in deploy_paths {
-        println!(
-            "    {:<20} => {:<20}",
-            deploy_path
-                .from
-                .strip_prefix(&path)
-                .unwrap()
-                .to_string_lossy(),
-            strip_home(&deploy_path.to).to_string_lossy()
-        );
-    }
-    println!();
-}
-
-fn print_status(lookup: &HashMap<DeployStatus, Vec<String>>, status: DeployStatus) -> Result<()> {
-    if let Some(l) = lookup.get(&status) {
-        for ff in l.iter().sorted() {
-            stdout()
-                .execute(match status {
-                    DeployStatus::Deployed => SetForegroundColor(Color::Green),
-                    DeployStatus::UnDeployed => SetForegroundColor(Color::Yellow),
-                    DeployStatus::Conflict { .. } => SetForegroundColor(Color::Red),
-                    DeployStatus::UnManaged => SetForegroundColor(Color::Grey),
-                })?
-                .execute(Print(format!("{:>12}", format!("{:}", status))))?
-                .execute(ResetColor)?
-                .execute(Print(format!(" {}\n", ff)))?;
-        }
+        println!();
     }
 
-    Ok(())
-}
-
-/// Show status of files.
-/// # Arguments
-/// * `path` - Path to deploy directory.
-/// # Example
-/// ```sh
-/// $ rrcm status
-/// ```
-/// ```sh
-/// $ rrcm status -a
-/// ```
-pub fn status<P>(path: P) -> Result<()>
-where
-    P: AsRef<Path>,
-{
-    let app_config = appconfig::load_config(&path)?;
-    let deploy_paths = get_deploy_paths(&path, &app_config)?;
-    print_deploy_paths(&path, &deploy_paths);
-
-    let lookup = deploy_paths
-        .iter()
-        .filter_map(|deploy_path| {
-            Some(
-                read_dir(&deploy_path.from)
-                    .ok()?
-                    .filter_map(|from| {
-                        let from = from.ok()?.path();
-                        let to = deploy_path.to.join(from.file_name()?);
-                        let s = get_status(&from, &to);
-
-                        let from_str = from.strip_prefix(&path).ok()?.to_string_lossy();
-                        let to = strip_home(&to);
-                        let to_str = to.to_string_lossy();
-
-                        let ff = match &s {
-                            DeployStatus::Deployed => {
-                                format!("{:<20} => {:<20}", from_str, to_str)
-                            }
-                            DeployStatus::UnDeployed => format!("{:}", from_str),
-                            DeployStatus::UnManaged => format!("{:}", to_str),
-                            DeployStatus::Conflict { cause } => {
-                                format!(
-                                    "{:<20} => {:<20}\n             ({:})",
-                                    from_str, to_str, cause,
-                                )
-                            }
-                        };
-
-                        Some((s, ff))
-                    })
-                    .collect_vec(),
-            )
+    create_deploy_status(deploy_paths)
+        .inspect(|result| {
+            if verbose {
+                if let Err(e) = result {
+                    print_warn(e);
+                }
+            }
         })
-        .flatten()
-        .into_group_map();
+        .filter_map(Result::ok)
+        .for_each(|(status, from, to)| {
+            if matches!(
+                status,
+                DeployStatus::Deployed | DeployStatus::UnDeployed | DeployStatus::Conflict { .. }
+            ) {
+                print_deploy_status(path, &status, from, to).expect("print error");
+            }
+        });
 
-    for s in vec![
-        DeployStatus::Deployed,
-        DeployStatus::UnDeployed,
-        DeployStatus::Conflict {
-            cause: "".to_string(),
-        },
-    ] {
-        if lookup.contains_key(&s) {
-            print_status_description(&s);
-            print_status(&lookup, s)?;
-            println!();
-        }
-    }
     Ok(())
 }
 
-/// Initialize config file.
-/// # Arguments
-/// * `path` - Path to deploy directory.
-/// # Example
-/// ```sh
-/// $ rrcm init .
-/// ```
-pub fn init<P>(path: P) -> Result<()>
-where
-    P: AsRef<Path>,
-{
-    appconfig::init_config(&path)?;
+pub fn status(repo: Option<String>, verbose: bool) -> Result<()> {
+    let app_config = config::load_app_config()?;
+    app_config
+        .repos
+        .iter()
+        .filter(|(name, _)| {
+            // if repo is specified, skip other repo.
+            if let Some(repo) = repo.as_ref() {
+                name == &repo
+            } else {
+                true
+            }
+        })
+        .enumerate()
+        .map(|(index, (name, url))| {
+            let path = app_config.to_pathbuf()?.join(name);
+
+            if index > 0 {
+                println!();
+            }
+            println!("Repo {:}", name);
+            println!("  {:} => {:}", url, path.to_string_lossy());
+
+            status_impl(&app_config, path, verbose)?;
+
+            Ok(())
+        })
+        .for_each(|result| {
+            if let Err(e) = result {
+                print_error(&e);
+            }
+        });
+
+    Ok(())
+}
+
+fn add_git_option(git: &mut Command, quiet: bool, verbose: bool) {
+    if quiet {
+        git.arg("-q");
+    }
+    if verbose {
+        git.arg("-v");
+    }
+}
+
+pub fn update(repo: Option<String>, quiet: bool, verbose: bool) -> Result<()> {
+    let app_config = config::load_app_config()?;
+    app_config
+        .repos
+        .iter()
+        .filter(|(name, _)| {
+            // if repo is specified, skip other repo.
+            if let Some(repo) = repo.as_ref() {
+                name == &repo
+            } else {
+                true
+            }
+        })
+        .enumerate()
+        .map(|(index, (name, url))| {
+            let path = app_config.to_pathbuf()?.join(name);
+
+            if !quiet {
+                if index > 0 {
+                    println!();
+                }
+                println!("Update {:}", name);
+                println!("  {:} => {:}", url, path.to_string_lossy());
+            }
+
+            // update git repository
+            let mut git = Command::new("git");
+            if path.exists() {
+                git.arg("pull").current_dir(&path);
+                add_git_option(&mut git, quiet, verbose);
+
+                let status = git.status();
+                if status.is_err() || !status.unwrap().success() {
+                    bail!("Failed to pull {:}", url);
+                }
+            } else {
+                git.arg("clone").arg(url).arg(&path);
+                add_git_option(&mut git, quiet, verbose);
+
+                let status = git.status();
+                if status.is_err() || !status.unwrap().success() {
+                    bail!("Failed to clone {:}", url);
+                }
+            }
+
+            // deploy
+            deploy_impl(&path, quiet, false)?;
+
+            Ok(())
+        })
+        .for_each(|result| {
+            if let Err(e) = result {
+                print_error(&e);
+            }
+        });
     Ok(())
 }
