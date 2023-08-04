@@ -23,6 +23,8 @@ maplit = "1.0.2"
 dirs-sys = "0.4.1"
 crossterm = "0.26.1"
 url = { version = "2.4.0", features = ["serde"] }
+log = "0.4.19"
+simplelog = "0.12.1"
 
 [badges]
 github = { repository = "mizuki0629/rrcm" , workflow = "Lint and Test" }

@@ -27,3 +27,15 @@ where
         path.as_ref().to_path_buf()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_home() {
+        let home = dirs::home_dir().unwrap();
+        let path = home.join("test");
+        assert_eq!(strip_home(path), PathBuf::from("~").join("test"));
+    }
+}

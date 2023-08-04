@@ -1,4 +1,5 @@
 use crate::path::expand_env_var;
+use anyhow::ensure;
 use anyhow::{bail, Ok, Result};
 use maplit::btreemap;
 use serde::{Deserialize, Serialize};
@@ -7,9 +8,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OsPath {
-    windows: Option<String>,
-    mac: Option<String>,
-    linux: Option<String>,
+    pub windows: Option<String>,
+    pub mac: Option<String>,
+    pub linux: Option<String>,
 }
 impl OsPath {
     pub fn to_pathbuf(&self) -> Result<PathBuf> {
@@ -95,4 +96,10 @@ pub struct Repo {
 
 pub fn load_app_config() -> Result<AppConfig> {
     Ok(confy::load("rrcm", "config")?)
+}
+
+pub fn load_app_config_with_path(path: &PathBuf) -> Result<AppConfig> {
+    ensure!(path.exists(), format!("{} does not exist.", path.display()));
+    ensure!(path.is_file(), format!("{} is not a file.", path.display()));
+    Ok(confy::load_path(path)?)
 }

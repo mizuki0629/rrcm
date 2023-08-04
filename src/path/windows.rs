@@ -91,3 +91,64 @@ pub fn expand_env_var(s: &str) -> Result<String> {
     }
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expand_env_var() {
+        let home = dirs::home_dir().unwrap();
+        let path = home.join("test");
+        assert_eq!(
+            expand_env_var("%USERPROFILE%\\test").unwrap(),
+            path.to_str().unwrap()
+        );
+        assert_eq!(
+            expand_env_var("%FOLDERID_Desktop%\\test").unwrap(),
+            desktop_dir().unwrap().to_str().unwrap()
+        );
+        assert_eq!(
+            expand_env_var("%FOLDERID_Documents%\\test").unwrap(),
+            document_dir().unwrap().to_str().unwrap()
+        );
+        assert_eq!(
+            expand_env_var("%FOLDERID_LocalAppData%\\test").unwrap(),
+            config_local_dir().unwrap().to_str().unwrap()
+        );
+        assert_eq!(
+            expand_env_var("%FOLDERID_RoamingAppData%\\test").unwrap(),
+            config_dir().unwrap().to_str().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_is_known_folder_id() {
+        assert!(is_known_folder_id("FOLDERID_Desktop"));
+        assert!(is_known_folder_id("FOLDERID_Documents"));
+        assert!(is_known_folder_id("FOLDERID_LocalAppData"));
+        assert!(is_known_folder_id("FOLDERID_RoamingAppData"));
+        assert!(!is_known_folder_id("FOLDERID_Desktop2"));
+    }
+
+    #[test]
+    fn test_get_known_folder() {
+        assert_eq!(
+            get_known_folder("FOLDERID_Desktop").unwrap(),
+            desktop_dir().unwrap().to_str().unwrap()
+        );
+        assert_eq!(
+            get_known_folder("FOLDERID_Documents").unwrap(),
+            document_dir().unwrap().to_str().unwrap()
+        );
+        assert_eq!(
+            get_known_folder("FOLDERID_LocalAppData").unwrap(),
+            config_local_dir().unwrap().to_str().unwrap()
+        );
+        assert_eq!(
+            get_known_folder("FOLDERID_RoamingAppData").unwrap(),
+            config_dir().unwrap().to_str().unwrap()
+        );
+        assert!(get_known_folder("FOLDERID_Desktop2").is_err());
+    }
+}

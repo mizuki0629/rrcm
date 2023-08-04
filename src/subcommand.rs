@@ -2,7 +2,7 @@
 //!
 //! This module contains subcommands.
 //! Each subcommand is implemented as a function.
-use crate::config::{self, AppConfig};
+use crate::config::AppConfig;
 use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
 use crate::path::strip_home;
@@ -13,7 +13,7 @@ use crossterm::{
 };
 use itertools::Itertools;
 use std::fs::{read_dir, ReadDir};
-use std::io::{stderr, stdout};
+use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -68,40 +68,24 @@ fn create_deploy_status(
         })
 }
 
-pub fn print_error(e: &anyhow::Error) {
-    let imp = |e| {
-        stderr()
-            .execute(SetForegroundColor(Color::Red))?
-            .execute(Print("Error: "))?
-            .execute(ResetColor)?
-            .execute(Print(format!("{:?}\n", e)))?;
-        Ok(())
-    };
-    imp(e).expect("Failed to print error");
-}
-
-pub fn print_warn(e: &anyhow::Error) {
-    let imp = |e| {
-        stderr()
-            .execute(SetForegroundColor(Color::Yellow))?
-            .execute(Print("Warn: "))?
-            .execute(ResetColor)?
-            .execute(Print(format!("{:?}\n", e)))?;
-        Ok(())
-    };
-    imp(e).expect("Failed to print error");
-}
-
-fn deploy_impl<P>(path: P, quiet: bool, force: bool) -> Result<()>
+fn deploy_impl<P>(app_config: &AppConfig, path: P, quiet: bool, force: bool) -> Result<()>
 where
     P: AsRef<Path>,
 {
+    log::trace!("deploy_impl({:?}, {:?}, {:?})", path.as_ref(), quiet, force);
+
     let path = path.as_ref();
-    let deploy_paths = create_deploy_path(path, &config::load_app_config()?)
+    let deploy_paths = create_deploy_path(path, app_config)
+        .inspect(|r| {
+            log::debug!("Deploy path: {:?}", r);
+        })
         .filter_map(Result::ok)
         .collect();
 
     create_deploy_status(deploy_paths)
+        .inspect(|r| {
+            log::debug!("Deploy status: {:?}", r);
+        })
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .map(|(status, from, to)| match status {
@@ -150,13 +134,28 @@ where
                 bail!("File not exists {:}", to.to_string_lossy());
             }
         })
+        .inspect(|r| {
+            log::debug!("Deploy result: {:?}", r);
+        })
         .collect::<Result<Vec<_>>>()?;
 
     Ok(())
 }
 
-pub fn deploy(repo: Option<String>, quiet: bool, force: bool) -> Result<()> {
-    let app_config = config::load_app_config()?;
+pub fn deploy(
+    app_config: &AppConfig,
+    repo: Option<String>,
+    quiet: bool,
+    force: bool,
+) -> Result<()> {
+    log::trace!(
+        "deploy({:?}, {:?}, {:?}, {:?})",
+        app_config,
+        repo,
+        quiet,
+        force
+    );
+
     app_config
         .repos
         .iter()
@@ -180,28 +179,36 @@ pub fn deploy(repo: Option<String>, quiet: bool, force: bool) -> Result<()> {
             }
 
             // deploy
-            deploy_impl(path, quiet, force)?;
+            deploy_impl(app_config, path, quiet, force)?;
 
             Ok(())
         })
         .for_each(|result| {
             if let Err(e) = result {
-                print_error(&e);
+                log::error!("{:?}", e);
             }
         });
     Ok(())
 }
 
-fn undeploy_impl<P>(path: P, quiet: bool) -> Result<()>
+fn undeploy_impl<P>(app_config: &AppConfig, path: P, quiet: bool) -> Result<()>
 where
     P: AsRef<Path>,
 {
+    log::trace!("undeploy_impl({:?}, {:?})", path.as_ref(), quiet);
+
     let path = path.as_ref();
-    let deploy_paths = create_deploy_path(path, &config::load_app_config()?)
+    let deploy_paths = create_deploy_path(path, app_config)
+        .inspect(|r| {
+            log::debug!("Deploy path: {:?}", r);
+        })
         .filter_map(Result::ok)
         .collect();
 
     create_deploy_status(deploy_paths)
+        .inspect(|r| {
+            log::debug!("Deploy status: {:?}", r);
+        })
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .map(|(status, from, to)| match status {
@@ -220,13 +227,29 @@ where
                 bail!("File not exists {:}", to.to_string_lossy());
             }
         })
+        .inspect(|r| {
+            log::debug!("Undeploy result: {:?}", r);
+        })
         .collect::<Result<Vec<_>>>()?;
 
     Ok(())
 }
 
-pub fn undeploy(repo: Option<String>, quiet: bool) -> Result<()> {
-    let app_config = config::load_app_config()?;
+/// undeploy files
+/// # Arguments
+/// * `repo` - repo name
+/// * `quiet` - quiet mode
+/// # Example
+/// ```no_run
+/// use rrcm::undeploy;
+/// use rrcm::config::load_app_config;
+/// let app_config = load_app_config().unwrap();
+/// undeploy(&app_config, None, false);
+/// ```
+///     
+pub fn undeploy(app_config: &AppConfig, repo: Option<String>, quiet: bool) -> Result<()> {
+    log::trace!("undeploy({:?}, {:?}, {:?})", app_config, repo, quiet);
+
     app_config
         .repos
         .iter()
@@ -250,13 +273,13 @@ pub fn undeploy(repo: Option<String>, quiet: bool) -> Result<()> {
             }
 
             // undeploy
-            undeploy_impl(path, quiet)?;
+            undeploy_impl(app_config, path, quiet)?;
 
             Ok(())
         })
         .for_each(|result| {
             if let Err(e) = result {
-                print_error(&e);
+                log::error!("{:?}", e);
             }
         });
     Ok(())
@@ -296,40 +319,37 @@ where
     Ok(())
 }
 
-fn status_impl<P>(app_config: &AppConfig, path: P, verbose: bool) -> Result<()>
+fn status_impl<P>(app_config: &AppConfig, path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
+    log::trace!("status_impl({:?})", path.as_ref());
+
     let path = path.as_ref();
     let deploy_paths = create_deploy_path(path, app_config)
         .inspect(|result| {
-            if verbose {
-                if let Err(e) = result {
-                    print_warn(e);
-                }
+            if let Err(e) = result {
+                log::warn!("{:?}", e);
             }
         })
         .filter_map(Result::ok)
         .collect_vec();
 
-    if verbose {
-        println!("Deploy From => To ");
+    if log::log_enabled!(log::Level::Info) {
+        log::info!("Deploy From => To ");
         for (from_path, _, to_path) in &deploy_paths {
-            println!(
-                "    {:<20} => {:<20}",
+            log::info!(
+                "{:} => {:}",
                 from_path.strip_prefix(path).unwrap().to_string_lossy(),
                 strip_home(to_path).to_string_lossy()
             );
         }
-        println!();
     }
 
     create_deploy_status(deploy_paths)
         .inspect(|result| {
-            if verbose {
-                if let Err(e) = result {
-                    print_warn(e);
-                }
+            if let Err(e) = result {
+                log::warn!("{:?}", e);
             }
         })
         .filter_map(Result::ok)
@@ -345,8 +365,8 @@ where
     Ok(())
 }
 
-pub fn status(repo: Option<String>, verbose: bool) -> Result<()> {
-    let app_config = config::load_app_config()?;
+pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
+    log::trace!("status({:?}, {:?})", app_config, repo);
     app_config
         .repos
         .iter()
@@ -366,32 +386,57 @@ pub fn status(repo: Option<String>, verbose: bool) -> Result<()> {
                 println!();
             }
             println!("Repo {:}", name);
-            println!("  {:} => {:}", url, path.to_string_lossy());
+            log::info!("{:} => {:}", url, path.to_string_lossy());
 
-            status_impl(&app_config, path, verbose)?;
+            status_impl(app_config, path)?;
 
             Ok(())
         })
         .for_each(|result| {
             if let Err(e) = result {
-                print_error(&e);
+                log::error!("{:?}", e);
             }
         });
 
     Ok(())
 }
 
-fn add_git_option(git: &mut Command, quiet: bool, verbose: bool) {
-    if quiet {
-        git.arg("-q");
-    }
-    if verbose {
-        git.arg("-v");
-    }
-}
+/// Update dotfiles from git repository and deploy.
+/// If repo is specified, update only specified repo.
+/// If repo is not specified, update all repos.
+///
+/// # Arguments
+/// * `repo` - repository name
+/// * `quiet` - quiet mode
+/// * `verbose` - verbose mode
+///
+/// # Example
+/// ```no_run
+/// use rrcm::update;
+/// use rrcm::config::load_app_config;
+/// let app_config = load_app_config().unwrap();
+/// update(&app_config, None, false, false);
+/// ```
+/// ```no_run
+/// use rrcm::update;
+/// use rrcm::config::load_app_config;
+/// let app_config = load_app_config().unwrap();
+/// update(&app_config, Some("repo".to_string()), false, false);
+/// ```
+pub fn update(
+    app_config: &AppConfig,
+    repo: Option<String>,
+    quiet: bool,
+    verbose: bool,
+) -> Result<()> {
+    log::trace!(
+        "update({:?}, {:?}, {:?}, {:?})",
+        app_config,
+        repo,
+        quiet,
+        verbose
+    );
 
-pub fn update(repo: Option<String>, quiet: bool, verbose: bool) -> Result<()> {
-    let app_config = config::load_app_config()?;
     app_config
         .repos
         .iter()
@@ -419,30 +464,41 @@ pub fn update(repo: Option<String>, quiet: bool, verbose: bool) -> Result<()> {
             let mut git = Command::new("git");
             if path.exists() {
                 git.arg("pull").current_dir(&path);
-                add_git_option(&mut git, quiet, verbose);
-
-                let status = git.status();
-                if status.is_err() || !status.unwrap().success() {
-                    bail!("Failed to pull {:}", url);
-                }
             } else {
                 git.arg("clone").arg(url).arg(&path);
-                add_git_option(&mut git, quiet, verbose);
-
-                let status = git.status();
-                if status.is_err() || !status.unwrap().success() {
-                    bail!("Failed to clone {:}", url);
+                if verbose {
+                    git.arg("-v");
                 }
+            }
+            if quiet {
+                git.arg("-q");
+            }
+
+            let output = git.output()?;
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = stderr.trim_end();
+            if !output.status.success() {
+                bail!("{}", stderr);
+            }
+
+            if !quiet && !stderr.is_empty() {
+                println!("{}", stderr);
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stdout = stdout.trim_end();
+            if !stdout.is_empty() {
+                log::info!("{}", stdout);
             }
 
             // deploy
-            deploy_impl(&path, quiet, false)?;
+            deploy_impl(app_config, &path, quiet, false)?;
 
             Ok(())
         })
         .for_each(|result| {
             if let Err(e) = result {
-                print_error(&e);
+                log::error!("{:?}", e);
             }
         });
     Ok(())

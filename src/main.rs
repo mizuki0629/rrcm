@@ -99,6 +99,11 @@
 //! rrcm status
 //! ```
 //!
+use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use std::path::PathBuf;
+
+use anyhow::{Ok, Result};
+
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -110,8 +115,35 @@ use clap::{Parser, Subcommand};
     arg_required_else_help = true,
 )]
 struct Args {
+    #[command(flatten)]
+    log: LogArgs,
+
+    /// config file path
+    #[clap(required = false, short, long)]
+    config: Option<PathBuf>,
+
     #[clap(subcommand)]
     subcommand: SubCommands,
+}
+
+#[derive(clap::Args, Debug)]
+#[group(required = false, multiple = false)]
+struct LogArgs {
+    /// Be verbose
+    #[clap(short, long, default_value_t = false)]
+    verbose: bool,
+
+    /// Print debug information
+    #[clap(short, long, default_value_t = false)]
+    debug: bool,
+
+    /// Print trace information
+    #[clap(short, long, default_value_t = false)]
+    trace: bool,
+
+    /// Be quiet
+    #[clap(short, long, default_value_t = false)]
+    quiet: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -121,19 +153,12 @@ enum SubCommands {
         /// repository name
         #[clap(required = false, ignore_case = true)]
         repo: Option<String>,
-
-        /// Be verbose
-        #[clap(short, long, default_value_t = false)]
-        verbose: bool,
     },
     /// Deploy file or folder.
     Deploy {
         /// repository name
         #[clap(required = false, ignore_case = true)]
         repo: Option<String>,
-        /// Be quiet
-        #[clap(short, long, default_value_t = false)]
-        quiet: bool,
         /// if eists file, remove and deploy.  
         #[clap(short, long, default_value_t = false)]
         force: bool,
@@ -143,40 +168,71 @@ enum SubCommands {
         /// repository name
         #[clap(required = false, ignore_case = true)]
         repo: Option<String>,
-
-        /// Be quiet
-        #[clap(short, long, default_value_t = false)]
-        quiet: bool,
     },
     /// Update repository.
     Update {
         /// repository name
         #[clap(required = false, ignore_case = true)]
         repo: Option<String>,
-
-        /// Be quiet
-        #[clap(short, long, default_value_t = false)]
-        quiet: bool,
-
-        /// Be verbose
-        #[clap(short, long, default_value_t = false)]
-        verbose: bool,
     },
 }
 
 fn main() {
-    match Args::parse().subcommand {
-        SubCommands::Status { repo, verbose } => rrcm::status(repo, verbose),
-        SubCommands::Deploy { repo, quiet, force } => rrcm::deploy(repo, quiet, force),
-        SubCommands::Undeploy { repo, quiet } => rrcm::undeploy(repo, quiet),
-        SubCommands::Update {
-            repo,
-            quiet,
-            verbose,
-        } => rrcm::update(repo, quiet, verbose),
-    }
+    (|| {
+        let args = Args::parse();
+        init_logger(&args.log)?;
+
+        let app_config = if let Some(config) = args.config {
+            rrcm::config::load_app_config_with_path(&config)?
+        } else {
+            rrcm::config::load_app_config()?
+        };
+
+        match args.subcommand {
+            SubCommands::Status { repo } => {
+                rrcm::status(&app_config, repo)?;
+            }
+            SubCommands::Deploy { repo, force } => {
+                rrcm::deploy(&app_config, repo, args.log.quiet, force)?;
+            }
+            SubCommands::Undeploy { repo } => {
+                rrcm::undeploy(&app_config, repo, args.log.quiet)?;
+            }
+            SubCommands::Update { repo } => {
+                rrcm::update(
+                    &app_config,
+                    repo,
+                    args.log.quiet,
+                    args.log.verbose || args.log.debug || args.log.trace,
+                )?;
+            }
+        }
+        Ok(())
+    })()
     .unwrap_or_else(|e| {
-        rrcm::print_error(&e);
+        log::error!("{:?}", e);
         std::process::exit(1);
     });
+}
+
+fn init_logger(log: &LogArgs) -> Result<()> {
+    let level = if log.quiet {
+        LevelFilter::Off
+    } else if log.trace {
+        LevelFilter::Trace
+    } else if log.debug {
+        LevelFilter::Debug
+    } else if log.verbose {
+        LevelFilter::Info
+    } else {
+        LevelFilter::Error
+    };
+
+    CombinedLogger::init(vec![TermLogger::new(
+        level,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )])?;
+    Ok(())
 }
