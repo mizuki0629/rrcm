@@ -1,17 +1,25 @@
 use maplit::btreemap;
 use rrcm::config::AppConfig;
 use rrcm::config::OsPath;
-use simplelog::{CombinedLogger, Config, LevelFilter};
+use simplelog::{CombinedLogger, Config, LevelFilter, TermLogger, WriteLogger};
 
 fn init_logger(test_id: &str) {
     let tmpdir = env!("CARGO_TARGET_TMPDIR");
     let logdir = format!("{}/integration-tests/log", tmpdir);
     std::fs::create_dir_all(&logdir).unwrap_or_else(drop);
-    CombinedLogger::init(vec![simplelog::WriteLogger::new(
-        LevelFilter::Trace,
-        Config::default(),
-        std::fs::File::create(format!("{}/{}.log", &logdir, test_id)).unwrap(),
-    )])
+    CombinedLogger::init(vec![
+        WriteLogger::new(
+            LevelFilter::Trace,
+            Config::default(),
+            std::fs::File::create(format!("{}/{}.log", &logdir, test_id)).unwrap(),
+        ),
+        TermLogger::new(
+            LevelFilter::Error,
+            Config::default(),
+            simplelog::TerminalMode::Mixed,
+            simplelog::ColorChoice::Auto,
+        ),
+    ])
     .unwrap_or_else(drop)
 }
 
