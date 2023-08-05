@@ -1,6 +1,7 @@
 # rrcm
 [![Crates.io](https://img.shields.io/crates/v/rrcm.svg)](https://crates.io/crates/rrcm)
-[![Workflow Status](https://github.com/mizuki0629/rrcm/workflows/Lint%20and%20Test/badge.svg)](https://github.com/mizuki0629/rrcm/actions?query=workflow%3A%22Lint%2Band%2BTest%22)
+[![Workflow Status](https://github.com/mizuki0629/rrcm/workflows/Test/badge.svg)](https://github.com/mizuki0629/rrcm/actions?query=workflow%3A%22Test%22)
+[![codecov](https://codecov.io/gh/mizuki0629/rrcm/branch/master/graph/badge.svg?token=IVPHQ5UQIL)](https://codecov.io/gh/mizuki0629/rrcm)
 
 ### Introduction
 - Deploy configuration files and directories using symbolic links.
