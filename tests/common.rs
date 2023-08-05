@@ -59,7 +59,7 @@ fn new_app_config(test_id: &str) -> AppConfig {
     );
 
     let repos = btreemap!(
-            String::from("rrcm-test") => String::from("git@github.com:mizuki0629/rrcm-test.git"),
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
     );
 
     AppConfig {
