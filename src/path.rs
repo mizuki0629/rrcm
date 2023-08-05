@@ -30,12 +30,17 @@ where
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+    use std::path::Path;
+    use std::path::PathBuf;
+
     use super::*;
 
-    #[test]
-    fn test_strip_home() {
-        let home = dirs::home_dir().unwrap();
-        let path = home.join("test");
-        assert_eq!(strip_home(path), PathBuf::from("~").join("test"));
+    #[rstest]
+    #[case(dirs::home_dir().unwrap(), PathBuf::from("~"))]
+    #[case(dirs::home_dir().unwrap().join("foo"), Path::new("~").join("foo"))]
+    #[case(PathBuf::from("foo"), PathBuf::from("foo"))]
+    fn strip_home_test(#[case] path: PathBuf, #[case] expected: PathBuf) {
+        assert_eq!(strip_home(path), expected);
     }
 }

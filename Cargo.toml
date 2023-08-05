@@ -33,4 +33,4 @@ rstest = "0.18.1"
 nix = "0.22.0"
 
 [badges]
-github = { repository = "mizuki0629/rrcm" , workflow = "Lint and Test" }
+github = { repository = "mizuki0629/rrcm" , workflow = "Test" }

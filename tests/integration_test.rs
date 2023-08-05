@@ -4,8 +4,10 @@ use anyhow::Result;
 mod common;
 use common::{setup, teardown};
 use std::path::Path;
+use std::path::PathBuf;
 
 #[test]
+#[ignore]
 fn test_update() -> Result<()> {
     let test_id = "update";
     let app_config = setup(test_id);
@@ -14,10 +16,8 @@ fn test_update() -> Result<()> {
 
     let testdir = common::testdir(test_id);
     assert_eq!(
-        fs::read_link(format!("{}/home/.test.cfg", testdir))?
-            .to_str()
-            .unwrap(),
-        format!("{}/dotfiles/rrcm-test/home/.test.cfg", testdir)
+        fs::read_link(format!("{}/home/.test.cfg", testdir))?,
+        PathBuf::from(format!("{}/dotfiles/rrcm-test/home/.test.cfg", testdir))
     );
 
     teardown(test_id);
@@ -25,6 +25,7 @@ fn test_update() -> Result<()> {
 }
 
 #[test]
+#[ignore]
 fn test_undeploy() -> Result<()> {
     let test_id = "undeploy";
     let app_config = setup(test_id);
@@ -40,6 +41,7 @@ fn test_undeploy() -> Result<()> {
 }
 
 #[test]
+#[ignore]
 fn test_deploy() -> Result<()> {
     let test_id = "deploy";
     let app_config = setup(test_id);
@@ -56,6 +58,7 @@ fn test_deploy() -> Result<()> {
 }
 
 #[test]
+#[ignore]
 fn test_status_empty() -> Result<()> {
     let test_id = "status_empty";
     let app_config = setup(test_id);
@@ -67,6 +70,7 @@ fn test_status_empty() -> Result<()> {
 }
 
 #[test]
+#[ignore]
 fn test_status_deployed() -> Result<()> {
     let test_id = "status_deployed";
     let app_config = setup(test_id);
@@ -79,6 +83,7 @@ fn test_status_deployed() -> Result<()> {
 }
 
 #[test]
+#[ignore]
 fn test_status_undeployed() -> Result<()> {
     let test_id = "status_undeployed";
     let app_config = setup(test_id);

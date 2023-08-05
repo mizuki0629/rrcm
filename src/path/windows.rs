@@ -95,60 +95,66 @@ pub fn expand_env_var(s: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn test_expand_env_var() {
-        let home = dirs::home_dir().unwrap();
-        let path = home.join("test");
-        assert_eq!(
-            expand_env_var("%USERPROFILE%\\test").unwrap(),
-            path.to_str().unwrap()
-        );
-        assert_eq!(
-            expand_env_var("%FOLDERID_Desktop%\\test").unwrap(),
-            desktop_dir().unwrap().to_str().unwrap()
-        );
-        assert_eq!(
-            expand_env_var("%FOLDERID_Documents%\\test").unwrap(),
-            document_dir().unwrap().to_str().unwrap()
-        );
-        assert_eq!(
-            expand_env_var("%FOLDERID_LocalAppData%\\test").unwrap(),
-            config_local_dir().unwrap().to_str().unwrap()
-        );
-        assert_eq!(
-            expand_env_var("%FOLDERID_RoamingAppData%\\test").unwrap(),
-            config_dir().unwrap().to_str().unwrap()
-        );
+    #[rstest]
+    #[case("FOLDERID_Desktop", true)]
+    #[case("FOLDERID_Documents", true)]
+    #[case("FOLDERID_LocalAppData", true)]
+    #[case("FOLDERID_RoamingAppData", true)]
+    #[case("FOLDERID_Desktop2", false)]
+    fn test_is_known_folder_id(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(is_known_folder_id(input), expected);
     }
 
-    #[test]
-    fn test_is_known_folder_id() {
-        assert!(is_known_folder_id("FOLDERID_Desktop"));
-        assert!(is_known_folder_id("FOLDERID_Documents"));
-        assert!(is_known_folder_id("FOLDERID_LocalAppData"));
-        assert!(is_known_folder_id("FOLDERID_RoamingAppData"));
-        assert!(!is_known_folder_id("FOLDERID_Desktop2"));
+    #[rstest]
+    #[case("FOLDERID_Desktop", desktop_dir().unwrap().to_str().unwrap().to_string())]
+    #[case("FOLDERID_Documents", document_dir().unwrap().to_str().unwrap().to_string())]
+    #[case(
+        "FOLDERID_LocalAppData",
+        config_local_dir().unwrap().to_str().unwrap().to_string()
+    )]
+    #[case(
+        "FOLDERID_RoamingAppData",
+        config_dir().unwrap().to_str().unwrap().to_string()
+    )]
+    fn test_get_known_folder(#[case] input: &str, #[case] expected: String) {
+        assert_eq!(get_known_folder(input).unwrap(), expected);
     }
 
-    #[test]
-    fn test_get_known_folder() {
-        assert_eq!(
-            get_known_folder("FOLDERID_Desktop").unwrap(),
-            desktop_dir().unwrap().to_str().unwrap()
-        );
-        assert_eq!(
-            get_known_folder("FOLDERID_Documents").unwrap(),
-            document_dir().unwrap().to_str().unwrap()
-        );
-        assert_eq!(
-            get_known_folder("FOLDERID_LocalAppData").unwrap(),
-            config_local_dir().unwrap().to_str().unwrap()
-        );
-        assert_eq!(
-            get_known_folder("FOLDERID_RoamingAppData").unwrap(),
-            config_dir().unwrap().to_str().unwrap()
-        );
-        assert!(get_known_folder("FOLDERID_Desktop2").is_err());
+    #[rstest]
+    #[case("FOLDERID_Desktop2")]
+    fn test_get_known_folder_error(#[case] input: &str) {
+        assert!(get_known_folder(input).is_err());
+    }
+
+    #[rstest]
+    #[case("%FOLDERID_Desktop%", desktop_dir().unwrap().to_str().unwrap().to_string())]
+    #[case(
+        "%FOLDERID_Documents%",
+        document_dir().unwrap().to_str().unwrap().to_string()
+    )]
+    #[case(
+        "%FOLDERID_LocalAppData%",
+        config_local_dir().unwrap().to_str().unwrap().to_string()
+    )]
+    #[case(
+        "%FOLDERID_RoamingAppData%",
+        config_dir().unwrap().to_str().unwrap().to_string()
+    )]
+    #[case("%USERPROFILE%", dirs::home_dir().unwrap().to_str().unwrap().to_string())]
+    #[case("%USERPROFILE%\\foo", format!("{}\\foo", dirs::home_dir().unwrap().to_str().unwrap()))]
+    #[case("%USERPROFILE%\\foo\\%USERNAME%", format!("{}\\foo\\{}", dirs::home_dir().unwrap().to_str().unwrap(), std::env::var("USERNAME").unwrap()))]
+    #[case("%USERPROFILE%\\foo\\%USERNAME%\\bar", format!("{}\\foo\\{}\\bar", dirs::home_dir().unwrap().to_str().unwrap(), std::env::var("USERNAME").unwrap()))]
+    fn test_expand_env_var(#[case] input: &str, #[case] expected: String) {
+        assert_eq!(expand_env_var(input).unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case("%USERPROFILE")]
+    #[case("%USERPROFILE2%")]
+    #[case("%%")]
+    fn test_expand_env_var_error(#[case] input: &str) {
+        assert!(expand_env_var(input).is_err());
     }
 }
