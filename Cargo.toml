@@ -1,8 +1,8 @@
 [package]
 name = "rrcm"
-version = "0.2.4"
+version = "0.3.0"
 edition = "2021"
-license = "MIT"
+license-file = "LICENSE"
 description = "Rust RC file Management commands"
 repository = "https://github.com/mizuki0629/rrcm"
 readme = "README.md"
@@ -22,3 +22,15 @@ serde = { version = "1.0", features = ["derive"] }
 maplit = "1.0.2"
 dirs-sys = "0.4.1"
 crossterm = "0.26.1"
+url = { version = "2.4.0", features = ["serde"] }
+log = "0.4.19"
+simplelog = "0.12.1"
+
+[dev-dependencies]
+rstest = "0.18.1"
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = "0.22.0"
+
+[badges]
+github = { repository = "mizuki0629/rrcm" , workflow = "Test" }
