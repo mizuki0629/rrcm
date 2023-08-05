@@ -5,10 +5,12 @@ use simplelog::{CombinedLogger, Config, LevelFilter};
 
 fn init_logger(test_id: &str) {
     let tmpdir = env!("CARGO_TARGET_TMPDIR");
+    let logdir = format!("{}/integration-tests/log", tmpdir);
+    std::fs::create_dir_all(&logdir).unwrap_or_else(drop);
     CombinedLogger::init(vec![simplelog::WriteLogger::new(
         LevelFilter::Trace,
         Config::default(),
-        std::fs::File::create(format!("{}/integration-tests/{}.log", tmpdir, test_id)).unwrap(),
+        std::fs::File::create(format!("{}/{}.log", &logdir, test_id)).unwrap(),
     )])
     .unwrap_or_else(drop)
 }
