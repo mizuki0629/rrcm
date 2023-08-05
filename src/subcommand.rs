@@ -388,6 +388,13 @@ pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
             println!("Repo {:}", name);
             log::info!("{:} => {:}", url, path.to_string_lossy());
 
+            // TODO: repo自体のstatusを表示する
+            // ディレクトリの存在チェック
+            // gitの存在チェック
+            // gitのstatusを表示する
+            // gitのbranchを表示する
+            // gitのremoteを表示する
+            // gitのtagを表示する
             status_impl(app_config, path)?;
 
             Ok(())

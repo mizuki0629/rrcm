@@ -86,7 +86,7 @@ pub fn expand_env_var(s: &str) -> Result<String> {
                         bail!("invalid env var name: {}", varname);
                     }
                     if varname.is_empty() {
-                        bail!("invalid env var name: {}", varname);
+                        bail!("variable name is empty");
                     }
                     if is_xdg_base_directory(&varname) {
                         result.push_str(&get_xdg_default(&varname)?);
@@ -112,58 +112,65 @@ pub fn expand_env_var(s: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn test_expand_env_var() {
-        let s = "${HOME}/.config";
-        let result = expand_env_var(s).unwrap();
-        assert_eq!(
-            result,
-            format!("{}/.config", std::env::var("HOME").unwrap())
-        );
-
-        let s = "${XDG_CONFIG_HOME}/.config";
-        let result = expand_env_var(s).unwrap();
-        assert_eq!(
-            result,
-            format!("{}/.config/.config", std::env::var("HOME").unwrap())
-        );
-
-        let s = "${XDG_CONFIG_HOME2}/.config";
-        let result = expand_env_var(s);
-        assert!(result.is_err());
-
-        let s = "${XDG_CONFIG_HOME";
-        let result = expand_env_var(s);
-        assert!(result.is_err());
+    #[rstest]
+    #[case("${HOME}", format!("{}", std::env::var("HOME").unwrap()))]
+    #[case("${HOME}/.config", format!("{}/.config", std::env::var("HOME").unwrap()))]
+    #[case("${HOME}/.config/${XDG_CONFIG_HOME}", format!("{}/.config/{}/.config", std::env::var("HOME").unwrap(), std::env::var("HOME").unwrap()))]
+    #[case("${HOME}/.config/${XDG_CONFIG_HOME}/foo", format!("{}/.config/{}/.config/foo", std::env::var("HOME").unwrap(), std::env::var("HOME").unwrap()))]
+    fn test_expand_env_var(#[case] s: &str, #[case] expected: String) -> Result<()> {
+        let result = expand_env_var(s)?;
+        assert_eq!(result, expected);
+        Ok(())
     }
 
-    #[test]
-    fn test_is_xdg_base_directory() {
-        assert!(is_xdg_base_directory("XDG_CONFIG_HOME"));
-        assert!(is_xdg_base_directory("XDG_DATA_HOME"));
-        assert!(is_xdg_base_directory("XDG_CACHE_HOME"));
-        assert!(!is_xdg_base_directory("XDG_CONFIG_HOME2"));
+    #[rstest]
+    #[case("${HOME", "invalid env var name: HOME")]
+    #[case("${}/.config", "variable name is empty")]
+    #[case("${HOME2}/.config", "env var HOME2 not found")]
+    #[case(
+        "${HOME}/.config/${XDG_CONFIG_HOME",
+        "invalid env var name: XDG_CONFIG_HOME"
+    )]
+    #[case(
+        "${HOME}/.config/${XDG_CONFIG_HOME2}/foo",
+        "env var XDG_CONFIG_HOME2 not found"
+    )]
+    fn test_expand_env_var_error(#[case] s: &str, #[case] expected: &str) {
+        let result = expand_env_var(s);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), expected);
     }
 
-    #[test]
-    fn test_get_xdg_default() {
-        let result = get_xdg_default("XDG_CONFIG_HOME").unwrap();
-        assert_eq!(
-            result,
-            format!("{}/.config", std::env::var("HOME").unwrap())
-        );
+    #[rstest]
+    #[case("XDG_CONFIG_HOME", true)]
+    #[case("XDG_DATA_HOME", true)]
+    #[case("XDG_CACHE_HOME", true)]
+    #[case("XDG_RUNTIME_DIR", true)]
+    #[case("XDG_STATE_HOME", true)]
+    #[case("XDG_CONFIG_HOME2", false)]
+    fn test_is_xdg_base_directory(#[case] s: &str, #[case] expected: bool) {
+        assert_eq!(is_xdg_base_directory(s), expected);
+    }
 
-        let result = get_xdg_default("XDG_DATA_HOME").unwrap();
-        assert_eq!(
-            result,
-            format!("{}/.local/share", std::env::var("HOME").unwrap())
-        );
+    #[rstest]
+    #[case("XDG_CONFIG_HOME", format!("{}/.config", std::env::var("HOME").unwrap()))]
+    #[case("XDG_DATA_HOME", format!("{}/.local/share", std::env::var("HOME").unwrap()))]
+    #[case("XDG_CACHE_HOME", format!("{}/.cache", std::env::var("HOME").unwrap()))]
+    #[case("XDG_RUNTIME_DIR", format!("/run/user/{}", nix::unistd::getuid().as_raw()))]
+    #[case("XDG_STATE_HOME", format!("{}/.local/state", std::env::var("HOME").unwrap()))]
+    fn test_get_xdg_default(#[case] s: &str, #[case] expected: String) -> Result<()> {
+        let result = get_xdg_default(s)?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
 
-        let result = get_xdg_default("XDG_CACHE_HOME").unwrap();
-        assert_eq!(result, format!("{}/.cache", std::env::var("HOME").unwrap()));
-
-        let result = get_xdg_default("XDG_CONFIG_HOME2");
+    #[rstest]
+    #[case("XDG_CONFIG_HOME2")]
+    fn test_get_xdg_default_error(#[case] s: &str) -> Result<()> {
+        let result = get_xdg_default(s);
         assert!(result.is_err());
+        Ok(())
     }
 }
