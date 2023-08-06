@@ -29,41 +29,33 @@ dependencies = [
 [tasks.install-cargo-nextest]
 install_crate = { crate_name = "cargo-nextest", binary = "cargo", test_arg = ["nextest", "--help"] }
 
-[tasks.coverage-llvm-cov]
+[tasks.llvm-cov-dev]
 description = "Generate code coverage report."
 category = "Test"
 install_crate = "cargo-llvm-cov"
 command = "cargo"
 args = ["llvm-cov", "nextest", "-E", "${NEXTEST_FILTER}"]
 
-[tasks.coverage-llvm-cov-ci]
+[tasks.llvm-cov-ci]
 description = "Generate code coverage report."
 category = "Test"
 install_crate = "cargo-llvm-cov"
 command = "cargo"
 args = ["llvm-cov", "nextest", "--all-features", "--workspace", "--codecov", "--output-path", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/codecov.json", "-E", "${NEXTEST_FILTER}"]
 
-[task.coverage-llvm-cov]
+[tasks.llvm-cov]
 description = "Generate code coverage report."
 category = "Test"
 dependencies = ["install-cargo-nextest"]
 run_task = [
-    { name = "coverage-llvm-cov-ci", condition = "${CARGO_MAKE_CI}"}, 
-    { name = "coverage-llvm-cov" }
-]
-
-[tasks.coverage-ci]
-description = "Generate code coverage report."
-category = "Test"
-dependencies = ["install-cargo-nextest"]
-run_task = [
-    { name = "coverage-llvm-cov-ci" }, 
+    { name = "llvm-cov-ci", condition = { env_true = [ "CARGO_MAKE_CI" ] }},
+    { name = "llvm-cov-dev" },
 ]
 
 [tasks.coverage]
 description = "Generate code coverage report."
 category = "Test"
-run_task = { name = "coverage-llvm-cov" }
+run_task = { name = "llvm-cov" }
 
 [tasks.echo]
 command = "echo"
