@@ -33,7 +33,7 @@ jobs:
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Install cargo-make
-      uses: taiki-e/install-action@cargo-make
+      uses: davidB/rust-cargo-make@v1
     - name: Install cargo-nextest
       uses: taiki-e/install-action@cargo-nextest
     - name: Generate code coverage
