@@ -52,7 +52,19 @@ run_task = [
     { name = "coverage-llvm-cov" }
 ]
 
+[tasks.coverage-ci]
+description = "Generate code coverage report."
+category = "Test"
+dependencies = ["install-cargo-nextest"]
+run_task = [
+    { name = "coverage-llvm-cov-ci" }, 
+]
+
 [tasks.coverage]
 description = "Generate code coverage report."
 category = "Test"
 run_task = { name = "coverage-llvm-cov" }
+
+[tasks.echo]
+command = "echo"
+args = ["${CARGO_MAKE_CI}", "${CARGO_MAKE_PR}", "${CARGO_MAKE_CI_BRANCH_NAME}", "${CARGO_MAKE_CI_VENDOR}"]
