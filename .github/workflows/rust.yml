@@ -22,7 +22,7 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-        components: rustfmt, clippy
+        components: rustfmt, clippy, llvm-tools-preview
     - uses: Swatinem/rust-cache@v2
     - name: Run check
       run: cargo check
@@ -30,16 +30,11 @@ jobs:
       run: cargo fmt --all -- --check
     - name: Run clippy
       run: cargo clippy -- -D warnings
-    - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@cargo-llvm-cov
-    - name: Install cargo-make
-      uses: davidB/rust-cargo-make@v1
-    - name: Install cargo-nextest
-      uses: taiki-e/install-action@cargo-nextest
+    - uses: taiki-e/install-action@cargo-llvm-cov
+    - uses: taiki-e/install-action@cargo-nextest
+    - uses: taiki-e/install-action@cargo-make
     - name: Generate code coverage
-      run: cargo make coverage-ci
-    - name: echo
-      run: cargo make echo
+      run: cargo make coverage
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
