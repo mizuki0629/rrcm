@@ -1,0 +1,58 @@
+[env]
+NEXTEST_FILTER  = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "all()", mapping = {"windows" = "not test(/win_need_admin/)" } }
+
+[tasks.set-nextest-filter-all]
+env = { NEXTEST_FILTER = "all()" }
+
+[tasks.test]
+install_crate = "cargo-nextest"
+command = "cargo"
+args = ["nextest", "run", "-E", "${NEXTEST_FILTER}"]
+
+[tasks.readme]
+description = "Generate README.md"
+install_crate = "cargo-readme"
+command = "cargo"
+args = ["readme", "--no-indent-headings", "--no-license", "--no-title", "-i", "src/main.rs", "-o", "README.md"]
+category = "Documentation"
+
+[tasks.docs-flow]
+description = "Generate rust documentation."
+category = "Documentation"
+dependencies = [
+    "pre-docs",
+    "docs",
+    "post-docs",
+    "readme",
+]
+
+[tasks.install-cargo-nextest]
+install_crate = { crate_name = "cargo-nextest", binary = "cargo", test_arg = ["nextest", "--help"] }
+
+[tasks.coverage-llvm-cov]
+description = "Generate code coverage report."
+category = "Test"
+install_crate = "cargo-llvm-cov"
+command = "cargo"
+args = ["llvm-cov", "nextest", "-E", "${NEXTEST_FILTER}"]
+
+[tasks.coverage-llvm-cov-ci]
+description = "Generate code coverage report."
+category = "Test"
+install_crate = "cargo-llvm-cov"
+command = "cargo"
+args = ["llvm-cov", "nextest", "--all-features", "--workspace", "--codecov", "--output-path", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/codecov.json", "-E", "${NEXTEST_FILTER}"]
+
+[task.coverage-llvm-cov]
+description = "Generate code coverage report."
+category = "Test"
+dependencies = ["install-cargo-nextest"]
+run_task = [
+    { name = "coverage-llvm-cov-ci", condition = "${CARGO_MAKE_CI}"}, 
+    { name = "coverage-llvm-cov" }
+]
+
+[tasks.coverage]
+description = "Generate code coverage report."
+category = "Test"
+run_task = { name = "coverage-llvm-cov" }

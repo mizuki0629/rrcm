@@ -3,7 +3,7 @@
 [![Workflow Status](https://github.com/mizuki0629/rrcm/workflows/Test/badge.svg)](https://github.com/mizuki0629/rrcm/actions?query=workflow%3A%22Test%22)
 [![codecov](https://codecov.io/gh/mizuki0629/rrcm/branch/master/graph/badge.svg?token=IVPHQ5UQIL)](https://codecov.io/gh/mizuki0629/rrcm)
 
-### Introduction
+## Introduction
 - Deploy configuration files and directories using symbolic links.
 - Configuration files and directories are managed in a git repository.
 - Provides deployment on multiple OS from the same directory.
@@ -12,19 +12,19 @@ Provides the location of these directories by leveraging the mechanisms defined 
 - the [XDG base directory](https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html)  specifications on Linux and macOS
 - the [Known Folder](https://msdn.microsoft.com/en-us/library/windows/desktop/dd378457.aspx) API on Windows
 
-### Installation
-#### Cargo
+## Installation
+### Cargo
 ```sh
 cargo install rrcm
 ```
 
-### Configuration
+## Configuration
 The configuration file is a TOML file.
 configuration file path:
 - Unix: $HOME/.config/rrcm/config.toml
 - Win: %PROFILE%\AppData\Roaming\rrcm\config.toml
 
-#### Repository
+### Repository
 The repository is defined in the config.toml file.
 ```toml
 [repos]
@@ -58,7 +58,7 @@ home, config, config_local are the deployment targets.
 Under the deployment target, the file or directory is deployed by symbolic link.
 **Windows needs to be run as administrator.**
 
-#### Deployment target
+### Deployment target
 The deployment target is defined in the config.toml file.
 ```toml
 [deploy.config]
@@ -95,7 +95,7 @@ The following special variables are available.
     - %FOLDERID_Documents%
     - %FOLDERID_Desktop%
 
-### Examples
+## Examples
 ```sh
 # update all repositories
 rrcm update
