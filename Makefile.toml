@@ -1,3 +1,6 @@
+[config]
+skip_core_tasks = true
+
 [env]
 NEXTEST_FILTER  = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "all()", mapping = {"windows" = "not test(/win_need_admin/)" } }
 
@@ -35,20 +38,19 @@ install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo", test_arg = ["
 [tasks.llvm-cov-dev]
 description = "Generate code coverage report."
 category = "Test"
-dependencies = ["install-cargo-llvm-cov", "install-cargo-nextest"]
 command = "cargo"
 args = ["llvm-cov", "nextest", "-E", "${NEXTEST_FILTER}"]
 
 [tasks.llvm-cov-ci]
 description = "Generate code coverage report."
 category = "Test"
-dependencies = ["install-cargo-llvm-cov", "install-cargo-nextest"]
 command = "cargo"
 args = ["llvm-cov", "nextest", "--all-features", "--workspace", "--codecov", "--output-path", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/codecov.json", "-E", "${NEXTEST_FILTER}"]
 
 [tasks.llvm-cov]
 description = "Generate code coverage report."
 category = "Test"
+dependencies = ["install-cargo-llvm-cov", "install-cargo-nextest"]
 run_task = [
     { name = "llvm-cov-ci", condition = { env_true = [ "CARGO_MAKE_CI" ] }},
     { name = "llvm-cov-dev" },
