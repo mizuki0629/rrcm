@@ -34,7 +34,7 @@ jobs:
     - uses: taiki-e/install-action@cargo-nextest
     - uses: taiki-e/install-action@cargo-make
     - name: Generate code coverage
-      run: cargo make coverage-ci
+      run: cargo make coverage
     - name: echo
       run: cargo make echo
     - name: Upload coverage to Codecov
