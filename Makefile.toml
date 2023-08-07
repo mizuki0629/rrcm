@@ -7,6 +7,10 @@ NEXTEST_FILTER  = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "al
 [tasks.set-nextest-filter-all]
 env = { NEXTEST_FILTER = "all()" }
 
+[tasks.test-all]
+dependencies = [ "set-nextest-filter-all" ]
+run_task = { name = "test" }
+
 [tasks.test]
 install_crate = "cargo-nextest"
 command = "cargo"
@@ -44,6 +48,7 @@ args = ["llvm-cov", "nextest", "-E", "${NEXTEST_FILTER}"]
 [tasks.llvm-cov-ci]
 description = "Generate code coverage report."
 category = "Test"
+dependencies = [ "set-nextest-filter-all" ]
 command = "cargo"
 args = ["llvm-cov", "nextest", "--all-features", "--workspace", "--codecov", "--output-path", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/codecov.json", "-E", "${NEXTEST_FILTER}"]
 
@@ -55,6 +60,11 @@ run_task = [
     { name = "llvm-cov-ci", condition = { env_true = [ "CARGO_MAKE_CI" ] }},
     { name = "llvm-cov-dev" },
 ]
+
+
+[tasks.coverage-all]
+dependencies = [ "set-nextest-filter-all" ]
+run_task = { name = "coverage" }
 
 [tasks.coverage]
 description = "Generate code coverage report."
