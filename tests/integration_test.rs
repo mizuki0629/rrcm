@@ -49,7 +49,7 @@ fn test_status_empty() -> Result<()> {
     let test_id = "status_empty";
     let app_config = setup(test_id);
 
-    rrcm::status(&app_config, None)?;
+    rrcm::status(&app_config, &None)?;
 
     teardown(test_id);
     Ok(())
@@ -61,18 +61,22 @@ mod win_need_admin {
     use rstest::rstest;
 
     #[rstest]
-    #[case("update_case_1", false, false)]
-    #[case("update_case_2", true, false)]
-    #[case("update_case_3", false, true)]
-    fn test_update(
+    #[case("update_clone_case_1", Some("rrcm-test".to_owned()), false, false)]
+    #[case("update_clone_case_2", Some("rrcm-test".to_owned()), true, false)]
+    #[case("update_clone_case_3", Some("rrcm-test".to_owned()), false, true)]
+    #[case("update_clone_case_4", None, false, false)]
+    #[case("update_clone_case_5", None, true, false)]
+    #[case("update_clone_case_6", None, false, true)]
+    fn test_update_clone(
         #[case] test_id: &str,
+        #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
     ) -> Result<()> {
         let app_config = setup(test_id);
 
-        rrcm::update(&app_config, None, quiet, verbose)?;
-        rrcm::status(&app_config, None)?;
+        rrcm::update(&app_config, &repo, quiet, verbose)?;
+        rrcm::status(&app_config, &repo)?;
 
         let testdir = common::testdir(test_id);
         assert_eq!(
@@ -90,19 +94,57 @@ mod win_need_admin {
     }
 
     #[rstest]
-    #[case("undeploy_case_1", false, false)]
-    #[case("undeploy_case_2", true, false)]
-    #[case("undeploy_case_3", false, true)]
-    fn test_undeploy(
+    #[case("update_update_case_1", Some("rrcm-test".to_owned()), false, false)]
+    #[case("update_update_case_2", Some("rrcm-test".to_owned()), true, false)]
+    #[case("update_update_case_3", Some("rrcm-test".to_owned()), false, true)]
+    #[case("update_update_case_4", None, false, false)]
+    #[case("update_update_case_5", None, true, false)]
+    #[case("update_update_case_6", None, false, true)]
+    fn test_update_pull(
         #[case] test_id: &str,
+        #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
     ) -> Result<()> {
         let app_config = setup(test_id);
 
-        rrcm::update(&app_config, None, quiet, verbose)?;
-        rrcm::undeploy(&app_config, None, quiet)?;
-        rrcm::status(&app_config, None)?;
+        rrcm::update(&app_config, &repo, quiet, verbose)?;
+        rrcm::update(&app_config, &repo, quiet, verbose)?;
+        rrcm::status(&app_config, &repo)?;
+
+        let testdir = common::testdir(test_id);
+        assert_eq!(
+            fs::read_link(format!("{}/home/.test.cfg", testdir))?,
+            PathBuf::from(format!("{}/dotfiles/rrcm-test/home/.test.cfg", testdir))
+        );
+
+        assert_eq!(
+            fs::read_link(format!("{}/config_local/dir", testdir))?,
+            PathBuf::from(format!("{}/dotfiles/rrcm-test/config_local/dir", testdir))
+        );
+
+        teardown(test_id);
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("undeploy_case_1", Some("rrcm-test".to_owned()), false, false)]
+    #[case("undeploy_case_2", Some("rrcm-test".to_owned()), true, false)]
+    #[case("undeploy_case_3", Some("rrcm-test".to_owned()), false, true)]
+    #[case("undeploy_case_4", None, false, false)]
+    #[case("undeploy_case_5", None, true, false)]
+    #[case("undeploy_case_6", None, false, true)]
+    fn test_undeploy(
+        #[case] test_id: &str,
+        #[case] repo: Option<String>,
+        #[case] quiet: bool,
+        #[case] verbose: bool,
+    ) -> Result<()> {
+        let app_config = setup(test_id);
+
+        rrcm::update(&app_config, &repo, quiet, verbose)?;
+        rrcm::undeploy(&app_config, &repo, quiet)?;
+        rrcm::status(&app_config, &repo)?;
 
         let testdir = common::testdir(test_id);
         assert!(!Path::new(&format!("{}/home/.test.cfg", testdir)).exists());
@@ -113,22 +155,57 @@ mod win_need_admin {
     }
 
     #[rstest]
-    #[case("deploy_case_1", false, false, false)]
-    #[case("deploy_case_2", true, false, false)]
-    #[case("deploy_case_3", false, true, false)]
-    #[case("deploy_case_4", false, false, true)]
+    #[case("deploy_case_1", Some("rrcm-test".to_owned()), false, false, false)]
+    #[case("deploy_case_2", Some("rrcm-test".to_owned()), true, false, false)]
+    #[case("deploy_case_3", Some("rrcm-test".to_owned()), false, true, false)]
+    #[case("deploy_case_4", Some("rrcm-test".to_owned()), false, false, true)]
+    #[case("deploy_case_5", None, false, false, false)]
+    #[case("deploy_case_6", None, true, false, false)]
+    #[case("deploy_case_7", None, false, true, false)]
+    #[case("deploy_case_8", None, false, false, true)]
     fn test_deploy(
         #[case] test_id: &str,
+        #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
         #[case] force: bool,
     ) -> Result<()> {
         let app_config = setup(test_id);
 
-        rrcm::update(&app_config, None, quiet, verbose)?;
-        rrcm::undeploy(&app_config, None, quiet)?;
-        rrcm::deploy(&app_config, None, quiet, force)?;
-        rrcm::status(&app_config, None)?;
+        rrcm::update(&app_config, &repo, quiet, verbose)?;
+        rrcm::undeploy(&app_config, &repo, quiet)?;
+        rrcm::deploy(&app_config, &repo, quiet, force)?;
+        rrcm::status(&app_config, &repo)?;
+
+        let testdir = common::testdir(test_id);
+        assert!(Path::new(&format!("{}/home/.test.cfg", testdir)).exists());
+        assert!(Path::new(&format!("{}/config_local/dir", testdir)).exists());
+
+        teardown(test_id);
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("update_deploy_case_1", Some("rrcm-test".to_owned()), false, false, false)]
+    #[case("update_deploy_case_2", Some("rrcm-test".to_owned()), true, false, false)]
+    #[case("update_deploy_case_3", Some("rrcm-test".to_owned()), false, true, false)]
+    #[case("update_deploy_case_4", Some("rrcm-test".to_owned()), false, false, true)]
+    #[case("update_deploy_case_5", None, false, false, false)]
+    #[case("update_deploy_case_6", None, true, false, false)]
+    #[case("update_deploy_case_7", None, false, true, false)]
+    #[case("update_deploy_case_8", None, false, false, true)]
+    fn test_update_deploy(
+        #[case] test_id: &str,
+        #[case] repo: Option<String>,
+        #[case] quiet: bool,
+        #[case] verbose: bool,
+        #[case] force: bool,
+    ) -> Result<()> {
+        let app_config = setup(test_id);
+
+        rrcm::update(&app_config, &repo, quiet, verbose)?;
+        rrcm::deploy(&app_config, &repo, quiet, force)?;
+        rrcm::status(&app_config, &repo)?;
 
         let testdir = common::testdir(test_id);
         assert!(Path::new(&format!("{}/home/.test.cfg", testdir)).exists());

@@ -144,7 +144,7 @@ where
 
 pub fn deploy(
     app_config: &AppConfig,
-    repo: Option<String>,
+    repo: &Option<String>,
     quiet: bool,
     force: bool,
 ) -> Result<()> {
@@ -239,16 +239,7 @@ where
 /// # Arguments
 /// * `repo` - repo name
 /// * `quiet` - quiet mode
-/// # Example
-/// ```no_run
-/// use rrcm::undeploy;
-/// use rrcm::config::load_app_config;
-/// let path = std::path::PathBuf::from("/path/to/config.toml");
-/// let app_config = load_app_config(path).unwrap();
-/// undeploy(&app_config, None, false);
-/// ```
-///     
-pub fn undeploy(app_config: &AppConfig, repo: Option<String>, quiet: bool) -> Result<()> {
+pub fn undeploy(app_config: &AppConfig, repo: &Option<String>, quiet: bool) -> Result<()> {
     log::trace!("undeploy({:?}, {:?}, {:?})", app_config, repo, quiet);
 
     app_config
@@ -366,7 +357,7 @@ where
     Ok(())
 }
 
-pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
+pub fn status(app_config: &AppConfig, repo: &Option<String>) -> Result<()> {
     log::trace!("status({:?}, {:?})", app_config, repo);
     app_config
         .repos
@@ -417,25 +408,9 @@ pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
 /// * `repo` - repository name
 /// * `quiet` - quiet mode
 /// * `verbose` - verbose mode
-///
-/// # Example
-/// ```no_run
-/// use rrcm::update;
-/// use rrcm::config::load_app_config;
-/// let path = std::path::PathBuf::from("/path/to/config.toml");
-/// let app_config = load_app_config(path).unwrap();
-/// update(&app_config, None, false, false);
-/// ```
-/// ```no_run
-/// use rrcm::update;
-/// use rrcm::config::load_app_config;
-/// let path = std::path::PathBuf::from("/path/to/config.toml");
-/// let app_config = load_app_config(path).unwrap();
-/// update(&app_config, Some("repo".to_string()), false, false);
-/// ```
 pub fn update(
     app_config: &AppConfig,
-    repo: Option<String>,
+    repo: &Option<String>,
     quiet: bool,
     verbose: bool,
 ) -> Result<()> {
