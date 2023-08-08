@@ -182,10 +182,14 @@ fn main() {
         let args = Args::parse();
         init_logger(&args.log)?;
 
-        let app_config = if let Some(config) = args.config {
-            rrcm::config::load_app_config_with_path(&config)?
+        let app_config = if let Some(config_path) = args.config {
+            rrcm::config::load_app_config(config_path)?
         } else {
-            rrcm::config::load_app_config()?
+            let config_path = dirs::config_dir()
+                .ok_or_else(|| anyhow::anyhow!("config directory not found"))?
+                .join("rrcm")
+                .join("config.toml");
+            rrcm::config::load_app_config(config_path)?
         };
 
         match args.subcommand {

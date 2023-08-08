@@ -243,7 +243,8 @@ where
 /// ```no_run
 /// use rrcm::undeploy;
 /// use rrcm::config::load_app_config;
-/// let app_config = load_app_config().unwrap();
+/// let path = std::path::PathBuf::from("/path/to/config.toml");
+/// let app_config = load_app_config(path).unwrap();
 /// undeploy(&app_config, None, false);
 /// ```
 ///     
@@ -421,13 +422,15 @@ pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
 /// ```no_run
 /// use rrcm::update;
 /// use rrcm::config::load_app_config;
-/// let app_config = load_app_config().unwrap();
+/// let path = std::path::PathBuf::from("/path/to/config.toml");
+/// let app_config = load_app_config(path).unwrap();
 /// update(&app_config, None, false, false);
 /// ```
 /// ```no_run
 /// use rrcm::update;
 /// use rrcm::config::load_app_config;
-/// let app_config = load_app_config().unwrap();
+/// let path = std::path::PathBuf::from("/path/to/config.toml");
+/// let app_config = load_app_config(path).unwrap();
 /// update(&app_config, Some("repo".to_string()), false, false);
 /// ```
 pub fn update(
