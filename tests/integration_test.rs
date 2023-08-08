@@ -7,6 +7,44 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[test]
+fn test_load_app_config() -> Result<()> {
+    let test_id = "load_app_config";
+    let app_config = setup(test_id);
+    let path = PathBuf::from(common::testdir(test_id)).join("config.toml");
+    confy::store_path(&path, app_config)?;
+
+    rrcm::config::load_app_config(&path)?;
+
+    teardown(test_id);
+    Ok(())
+}
+
+#[test]
+fn test_load_app_config_not_exists() -> Result<()> {
+    let test_id = "load_app_config_not_exists";
+    let _ = setup(test_id);
+    let path = PathBuf::from(common::testdir(test_id)).join("config.toml");
+
+    assert!(rrcm::config::load_app_config(path).is_err());
+
+    teardown(test_id);
+    Ok(())
+}
+
+#[test]
+fn test_load_app_config_invalid() -> Result<()> {
+    let test_id = "load_app_config_invalid";
+    let _ = setup(test_id);
+    let path = PathBuf::from(common::testdir(test_id)).join("config.toml");
+    fs::write(&path, "invalid")?;
+
+    assert!(rrcm::config::load_app_config(&path).is_err());
+
+    teardown(test_id);
+    Ok(())
+}
+
+#[test]
 fn test_status_empty() -> Result<()> {
     let test_id = "status_empty";
     let app_config = setup(test_id);
