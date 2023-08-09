@@ -8,6 +8,7 @@ use predicates::prelude::*;
 use rrcm::config::AppConfig;
 use rrcm::config::OsPath;
 use std::fs;
+use std::path::MAIN_SEPARATOR;
 
 fn create_app_config(temp: &assert_fs::TempDir) -> Result<ChildPath> {
     let tmpdir = temp.path().to_string_lossy();
@@ -31,7 +32,7 @@ fn create_app_config(temp: &assert_fs::TempDir) -> Result<ChildPath> {
             linux: Some(format!("{}/config",tmpdir)),
         },
         String::from("config_local") => OsPath {
-            windows: Some(format!("{}\\config_file",tmpdir)),
+            windows: Some(format!("{}\\config_local",tmpdir)),
             mac: Some(format!("{}/config_local",tmpdir)),
             linux: Some(format!("{}/config_local",tmpdir)),
         },
@@ -92,27 +93,30 @@ mod win_need_admin {
                 .success()
                 .stdout(predicate::str::starts_with(format!(
                     r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                 )))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+                    r#"{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                     status = Green.paint("    Deployed"),
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
-{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
+{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
                 status = Green.paint("    Deployed"),
             ));
         }
@@ -175,27 +179,30 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
                 .success()
                 .stdout(predicate::str::starts_with(format!(
                     r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                 )))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+                    r#"{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                     status = Green.paint("    Deployed"),
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
-{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
+{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
                 status = Green.paint("    Deployed"),
             ));
         }
@@ -240,16 +247,18 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
                 .success()
                 .stdout(predicate::str::starts_with(format!(
                     r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
             ));
         }
 
@@ -311,27 +320,30 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
                 .success()
                 .stdout(predicate::str::starts_with(format!(
                     r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                 )))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+                    r#"{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                     status = Green.paint("    Deployed"),
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
-{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
+{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
                 status = Green.paint("    Deployed"),
             ));
         }
@@ -398,18 +410,20 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
 "#,
                 ))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} config_local/dir
-{status} home/.test.cfg
+                    r#"{status} config_local{delim}dir
+{status} home{delim}.test.cfg
 "#,
                     status = Yellow.paint("  UnDeployed"),
+                    delim = MAIN_SEPARATOR,
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Repo rrcm-test
-{status} config_local/dir
-{status} home/.test.cfg
+{status} config_local{delim}dir
+{status} home{delim}.test.cfg
 "#,
                 status = Yellow.paint("  UnDeployed"),
+                delim = MAIN_SEPARATOR,
             ));
         }
 
@@ -429,7 +443,7 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
         #[case] verbose: bool,
         #[case] force: bool,
     ) -> Result<()> {
-        let temp = assert_fs::TempDir::new()?;
+        let temp = assert_fs::TempDir::new()?.into_persistent();
         let config_file = create_app_config(&temp)?;
 
         // update
@@ -453,27 +467,30 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
                 .success()
                 .stdout(predicate::str::starts_with(format!(
                     r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                 )))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+                    r#"{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                     status = Green.paint("    Deployed"),
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
-{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
+{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
                 status = Green.paint("    Deployed"),
             ));
         }
@@ -579,19 +596,21 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
 "#,
                 ))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+                    r#"{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                     status = Green.paint("    Deployed"),
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Repo rrcm-test
-{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
                 status = Green.paint("    Deployed"),
             ));
         }
@@ -637,27 +656,30 @@ Cloning into '{temp}/dotfiles/rrcm-test'...
                 .success()
                 .stdout(predicate::str::starts_with(format!(
                     r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                 )))
                 .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+                    r#"{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                     temp = temp.path().to_string_lossy(),
+                    delim = MAIN_SEPARATOR,
                     status = Green.paint("    Deployed"),
                 )));
         } else {
             cmd.assert().success().stdout(format!(
                 r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}/dotfiles/rrcm-test
-Cloning into '{temp}/dotfiles/rrcm-test'...
-{status} {temp}/config_local/dir
-{status} {temp}/home/.test.cfg
+  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
+Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
+{status} {temp}{delim}config_local{delim}dir
+{status} {temp}{delim}home{delim}.test.cfg
 "#,
                 temp = temp.path().to_string_lossy(),
+                delim = MAIN_SEPARATOR,
                 status = Green.paint("    Deployed"),
             ));
         }

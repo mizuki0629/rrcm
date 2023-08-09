@@ -5,7 +5,6 @@
 use crate::config::AppConfig;
 use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
-use crate::path::strip_home;
 use ansi_term::Colour::{Fixed, Green, Red, Yellow};
 use anyhow::{bail, Context as _, Ok, Result};
 use itertools::Itertools;
@@ -296,8 +295,7 @@ where
         },
         {
             let from_str = from.as_ref().strip_prefix(path)?.to_string_lossy();
-            let to = strip_home(&to);
-            let to_str = to.to_string_lossy();
+            let to_str = to.as_ref().to_string_lossy();
 
             match &status {
                 DeployStatus::Deployed => {
@@ -336,7 +334,7 @@ where
             log::info!(
                 "{:} => {:}",
                 from_path.strip_prefix(path).unwrap().to_string_lossy(),
-                strip_home(to_path).to_string_lossy()
+                to_path.to_string_lossy()
             );
         }
     }
