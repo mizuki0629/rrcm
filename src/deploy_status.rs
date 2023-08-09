@@ -79,6 +79,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::{assert_eq, assert_ne};
     use rstest::rstest;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -142,7 +143,11 @@ mod tests {
         #[case] b: DeployStatus,
         #[case] expected: bool,
     ) {
-        assert_eq!(a == b, expected);
+        if expected {
+            assert_eq!(a, b);
+        } else {
+            assert_ne!(a, b);
+        }
     }
 
     #[rstest]
@@ -202,7 +207,11 @@ mod tests {
         #[case] b: DeployStatus,
         #[case] expected: bool,
     ) {
-        assert_eq!(hash(&a) == hash(&b), expected);
+        if expected {
+            assert_eq!(hash(&a), hash(&b));
+        } else {
+            assert_ne!(hash(&a), hash(&b));
+        }
     }
 
     fn hash<T: Hash>(t: &T) -> u64 {

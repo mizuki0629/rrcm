@@ -6,14 +6,10 @@ use crate::config::AppConfig;
 use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
 use crate::path::strip_home;
+use ansi_term::Colour::{Fixed, Green, Red, Yellow};
 use anyhow::{bail, Context as _, Ok, Result};
-use crossterm::{
-    style::{Color, Print, ResetColor, SetForegroundColor},
-    ExecutableCommand,
-};
 use itertools::Itertools;
 use std::fs::{read_dir, ReadDir};
-use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -283,16 +279,22 @@ where
     Q: AsRef<Path>,
     R: AsRef<Path>,
 {
-    stdout()
-        .execute(match status {
-            DeployStatus::Deployed => SetForegroundColor(Color::Green),
-            DeployStatus::UnDeployed => SetForegroundColor(Color::Yellow),
-            DeployStatus::Conflict { .. } => SetForegroundColor(Color::Red),
-            DeployStatus::UnManaged => SetForegroundColor(Color::Grey),
-        })?
-        .execute(Print(format!("{:>12}", format!("{:}", status))))?
-        .execute(ResetColor)?
-        .execute(Print(format!(" {}\n", {
+    println!(
+        "{:>12} {}",
+        match status {
+            DeployStatus::Deployed => Green
+                .paint(format!("{:>12}", status.to_string()))
+                .to_string(),
+            DeployStatus::UnDeployed => Yellow
+                .paint(format!("{:>12}", status.to_string()))
+                .to_string(),
+            DeployStatus::Conflict { .. } =>
+                Red.paint(format!("{:>12}", status.to_string())).to_string(),
+            DeployStatus::UnManaged => Fixed(8)
+                .paint(format!("{:>12}", status.to_string()))
+                .to_string(),
+        },
+        {
             let from_str = from.as_ref().strip_prefix(path)?.to_string_lossy();
             let to = strip_home(&to);
             let to_str = to.to_string_lossy();
@@ -307,7 +309,8 @@ where
                     format!("{:<20} {:}", to_str, cause,)
                 }
             }
-        })))?;
+        }
+    );
     Ok(())
 }
 

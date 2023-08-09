@@ -217,8 +217,8 @@ fn main() {
     });
 }
 
-fn init_logger(log: &LogArgs) -> Result<()> {
-    let level = if log.quiet {
+fn get_log_level(log: &LogArgs) -> LevelFilter {
+    if log.quiet {
         LevelFilter::Off
     } else if log.trace {
         LevelFilter::Trace
@@ -228,9 +228,12 @@ fn init_logger(log: &LogArgs) -> Result<()> {
         LevelFilter::Info
     } else {
         LevelFilter::Error
-    };
+    }
+}
+
+fn init_logger(log: &LogArgs) -> Result<()> {
     CombinedLogger::init(vec![TermLogger::new(
-        level,
+        get_log_level(log),
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
@@ -250,7 +253,7 @@ mod tests {
     #[case(false, false, true, false, LevelFilter::Debug)]
     #[case(false, true, false, false, LevelFilter::Trace)]
     #[case(true, false, false, false, LevelFilter::Off)]
-    fn test_init_logger(
+    fn test_get_log_level(
         #[case] quiet: bool,
         #[case] trace: bool,
         #[case] debug: bool,
@@ -263,7 +266,6 @@ mod tests {
             debug,
             verbose,
         };
-        init_logger(&log).unwrap();
-        assert_eq!(log::max_level(), expected);
+        assert_eq!(get_log_level(&log), expected);
     }
 }
