@@ -66,6 +66,8 @@ fn create_cmd(
     repo: &Option<String>,
     quiet: bool,
     verbose: bool,
+    trace: bool,
+    debug: bool,
 ) -> Result<Command> {
     let mut cmd = Command::cargo_bin("rrcm")?;
     if quiet {
@@ -73,6 +75,12 @@ fn create_cmd(
     }
     if verbose {
         cmd.arg("--verbose");
+    }
+    if trace {
+        cmd.arg("--trace");
+    }
+    if debug {
+        cmd.arg("--debug");
     }
     cmd.arg("--config").arg(config_file.path());
     cmd.arg(subcommand);
@@ -101,14 +109,18 @@ mod win_need_admin {
     use rstest::rstest;
 
     #[rstest]
-    #[case(Some("rrcm-test".to_owned()), false, false)]
-    #[case(None, false, false)]
-    #[case(None, true, false)]
-    #[case(None, false, true)]
+    #[case(Some("rrcm-test".to_owned()), false, false, false, false)]
+    #[case(None, false, false, false, false)]
+    #[case(None, true, false, false, false)]
+    #[case(None, false, true, false, false)]
+    #[case(None, false, false, true, false)]
+    #[case(None, false, false, false, true)]
     fn test_update(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
         let repos = btreemap!(
@@ -144,13 +156,13 @@ Cloning into '{repo_path}'...
             repo_path = repo_path.to_string_lossy()
         );
         // update clone
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(path, _)| {
                         output.contains(&format!(
@@ -170,14 +182,17 @@ Cloning into '{repo_path}'...
     }
 
     #[rstest]
-    #[case(Some("rrcm-test".to_owned()), false, false)]
-    #[case(None, false, false)]
-    #[case(None, true, false)]
-    #[case(None, false, true)]
+    #[case(Some("rrcm-test".to_owned()), false, false, false, false)]
+    #[case(None, false, false, false, false)]
+    #[case(None, true, false, false, false)]
+    #[case(None, false, true, false, false)]
+    #[case(None, false, false, true, false)]
     fn test_update_update(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
         let repos = btreemap!(
@@ -213,13 +228,13 @@ Cloning into '{repo_path}'...
             repo_path = repo_path.to_string_lossy()
         );
         // update clone
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(path, _)| {
                         output.contains(&format!(
@@ -241,13 +256,13 @@ Cloning into '{repo_path}'...
             repo_path = repo_path.to_string_lossy()
         );
         // update pull
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert().success().stdout("");
-        } else if verbose {
+        } else if verbose || trace || debug {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string));
+                .stdout(predicate::str::contains(repo_string));
         } else {
             cmd.assert().success().stdout(repo_string);
         }
@@ -261,14 +276,17 @@ Cloning into '{repo_path}'...
     }
 
     #[rstest]
-    #[case(Some("rrcm-test".to_owned()), false, false)]
-    #[case(None, false, false)]
-    #[case(None, true, false)]
-    #[case(None, false, true)]
+    #[case(Some("rrcm-test".to_owned()), false, false, false, false)]
+    #[case(None, false, false, false, false)]
+    #[case(None, true, false, false, false)]
+    #[case(None, false, true, false, false)]
+    #[case(None, false, false, true, false)]
     fn test_update_undeploy_status(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
         let repos = btreemap!(
@@ -305,13 +323,13 @@ Cloning into '{repo_path}'...
         );
 
         // update clone
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(path, _)| {
                         output.contains(&format!(
@@ -328,13 +346,21 @@ Cloning into '{repo_path}'...
 
         // undeploy
         let repo_string = "UnDeploy rrcm-test\n";
-        let mut cmd = create_cmd(&config_file, "undeploy", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(
+            &config_file,
+            "undeploy",
+            &repo,
+            quiet,
+            verbose,
+            trace,
+            debug,
+        )?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(_, target)| {
                         output.contains(&format!(
@@ -351,10 +377,10 @@ Cloning into '{repo_path}'...
 
         // status
         let repo_string = "Repo rrcm-test\n";
-        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose, trace, debug)?;
         cmd.assert()
             .success()
-            .stdout(predicate::str::starts_with(repo_string))
+            .stdout(predicate::str::contains(repo_string))
             .stdout(predicate::function(|output: &str| {
                 deploy_files.iter().all(|(_, target)| {
                     output.contains(&format!(
@@ -370,15 +396,19 @@ Cloning into '{repo_path}'...
     }
 
     #[rstest]
-    #[case(Some("rrcm-test".to_owned()), false, false, false)]
-    #[case(None, false, false, false)]
-    #[case(None, true, false, false)]
-    #[case(None, false, true, false)]
-    #[case(None, false, false, true)]
+    #[case(Some("rrcm-test".to_owned()), false, false, false, false,false)]
+    #[case(None, false, false, false, false, false)]
+    #[case(None, true, false, false, false, false)]
+    #[case(None, false, true, false, false, false)]
+    #[case(None, false, false, true, false, false)]
+    #[case(None, false, false, false, true, false)]
+    #[case(None, false, false, false, false, true)]
     fn test_update_undeploy_deploy_status(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
         #[case] force: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
@@ -416,13 +446,13 @@ Cloning into '{repo_path}'...
         );
 
         // update clone
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(path, _)| {
                         output.contains(&format!(
@@ -439,13 +469,21 @@ Cloning into '{repo_path}'...
 
         // undeploy
         let repo_string = "UnDeploy rrcm-test\n";
-        let mut cmd = create_cmd(&config_file, "undeploy", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(
+            &config_file,
+            "undeploy",
+            &repo,
+            quiet,
+            verbose,
+            trace,
+            debug,
+        )?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(_, target)| {
                         output.contains(&format!(
@@ -462,7 +500,7 @@ Cloning into '{repo_path}'...
 
         // deploy
         let repo_string = "Deploy rrcm-test\n";
-        let mut cmd = create_cmd(&config_file, "deploy", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "deploy", &repo, quiet, verbose, trace, debug)?;
         if force {
             cmd.arg("--force");
         }
@@ -471,7 +509,7 @@ Cloning into '{repo_path}'...
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(path, _)| {
                         output.contains(&format!(
@@ -488,10 +526,10 @@ Cloning into '{repo_path}'...
 
         // status
         let repo_string = "Repo rrcm-test\n";
-        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose, trace, debug)?;
         cmd.assert()
             .success()
-            .stdout(predicate::str::starts_with(repo_string))
+            .stdout(predicate::str::contains(repo_string))
             .stdout(predicate::function(|output: &str| {
                 deploy_files.iter().all(|(path, _)| {
                     output.contains(&format!(
@@ -508,15 +546,19 @@ Cloning into '{repo_path}'...
     }
 
     #[rstest]
-    #[case(Some("rrcm-test".to_owned()), false, false, false)]
-    #[case(None, false, false, false)]
-    #[case(None, true, false, false)]
-    #[case(None, false, true, false)]
-    #[case(None, false, false, true)]
+    #[case(Some("rrcm-test".to_owned()), false, false, false, false,false)]
+    #[case(None, false, false, false, false, false)]
+    #[case(None, true, false, false, false, false)]
+    #[case(None, false, true, false, false, false)]
+    #[case(None, false, false, true, false, false)]
+    #[case(None, false, false, false, true, false)]
+    #[case(None, false, false, false, false, true)]
     fn test_update_deploy(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
         #[case] force: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
@@ -554,13 +596,13 @@ Cloning into '{repo_path}'...
         );
 
         // update clone
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert().success().stdout("");
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stdout(predicate::function(|output: &str| {
                     deploy_files.iter().all(|(path, _)| {
                         output.contains(&format!(
@@ -577,16 +619,16 @@ Cloning into '{repo_path}'...
 
         let repo_string = "Deploy rrcm-test\n";
         // deploy
-        let mut cmd = create_cmd(&config_file, "deploy", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "deploy", &repo, quiet, verbose, trace, debug)?;
         if force {
             cmd.arg("--force");
         }
         if quiet {
             cmd.assert().success().stdout("");
-        } else if verbose {
+        } else if verbose || trace || debug {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(repo_string));
+                .stdout(predicate::str::contains(repo_string));
         } else {
             cmd.assert().success().stdout(repo_string);
         }
@@ -601,15 +643,17 @@ Cloning into '{repo_path}'...
     }
 
     #[rstest]
-    #[case(Some("rrcm-test".to_owned()), false, false)]
-    #[case(None, false, false)]
-    #[case(None, true, false)]
-    #[case(None, false, true)]
-    #[case(None, false, false)]
+    #[case(Some("rrcm-test".to_owned()), false, false, false, false)]
+    #[case(None, false, false, false, false)]
+    #[case(None, true, false, false, false)]
+    #[case(None, false, true, false, false)]
+    #[case(None, false, false, true, false)]
     fn test_deploy_error(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
         let repos = btreemap!(
@@ -650,7 +694,7 @@ Cloning into '{repo_path}'...
         }
 
         // update clone
-        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert()
                 .success()
@@ -667,7 +711,7 @@ Cloning into '{repo_path}'...
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(&repo_string))
+                .stdout(predicate::str::contains(&repo_string))
                 .stderr(predicate::function(|output: &str| {
                     deploy_files.iter().any(|(path, target)| {
                         output.contains(&format!(
@@ -684,10 +728,10 @@ Cloning into '{repo_path}'...
 
         let repo_string = "Repo rrcm-test\n";
         // status
-        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose)?;
+        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose, trace, debug)?;
         cmd.assert()
             .success()
-            .stdout(predicate::str::starts_with(repo_string))
+            .stdout(predicate::str::contains(repo_string))
             .stdout(predicate::function(|output: &str| {
                 deploy_files.iter().all(|(path, _)| {
                     output.contains(&format!(
