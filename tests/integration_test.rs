@@ -1,16 +1,25 @@
-use ansi_term::Colour::{Green, Yellow};
+use ansi_term::Colour::{Green, Red, Yellow};
 use anyhow::Result;
 use assert_cmd::Command;
 use assert_fs::fixture::ChildPath;
 use assert_fs::prelude::*;
+use assert_fs::TempDir;
 use maplit::btreemap;
 use predicates::prelude::*;
 use rrcm::config::AppConfig;
 use rrcm::config::OsPath;
+use std::collections::BTreeMap;
 use std::fs;
-use std::path::MAIN_SEPARATOR;
+use std::fs::OpenOptions;
 
-fn create_app_config(temp: &assert_fs::TempDir) -> Result<ChildPath> {
+fn create_temp_dir() -> Result<TempDir> {
+    Ok(TempDir::new()?.into_persistent_if(false))
+}
+
+fn create_app_config(
+    temp: &assert_fs::TempDir,
+    repos: &BTreeMap<String, String>,
+) -> Result<ChildPath> {
     let tmpdir = temp.path().to_string_lossy();
     let config_file = temp.child("config.toml");
 
@@ -42,17 +51,48 @@ fn create_app_config(temp: &assert_fs::TempDir) -> Result<ChildPath> {
     fs::create_dir(temp.path().join("config"))?;
     fs::create_dir(temp.path().join("config_local"))?;
 
-    let repos = btreemap!(
-            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
-    );
-
     config_file.write_str(&toml::to_string(&AppConfig {
         dotfiles,
         deploy,
-        repos,
+        repos: repos.clone(),
     })?)?;
 
     Ok(config_file)
+}
+
+fn create_cmd(
+    config_file: &assert_fs::fixture::ChildPath,
+    subcommand: &str,
+    repo: &Option<String>,
+    quiet: bool,
+    verbose: bool,
+) -> Result<Command> {
+    let mut cmd = Command::cargo_bin("rrcm")?;
+    if quiet {
+        cmd.arg("--quiet");
+    }
+    if verbose {
+        cmd.arg("--verbose");
+    }
+    cmd.arg("--config").arg(config_file.path());
+    cmd.arg(subcommand);
+    if let Some(repo) = repo {
+        cmd.arg(repo);
+    }
+    Ok(cmd)
+}
+
+fn assert_symlink<P, Q>(path: P, target: Q) -> Result<()>
+where
+    P: AsRef<std::path::Path>,
+    Q: AsRef<std::path::Path>,
+{
+    pretty_assertions::assert_eq!(
+        true,
+        path.as_ref().symlink_metadata()?.file_type().is_symlink()
+    );
+    pretty_assertions::assert_eq!(target.as_ref(), path.as_ref().read_link()?);
+    Ok(())
 }
 
 mod win_need_admin {
@@ -65,81 +105,65 @@ mod win_need_admin {
     #[case(None, false, false)]
     #[case(None, true, false)]
     #[case(None, false, true)]
-    fn test_update_clone(
+    fn test_update(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
     ) -> Result<()> {
-        let temp = assert_fs::TempDir::new()?;
-        let config_file = create_app_config(&temp)?;
+        let temp = create_temp_dir()?;
+        let repos = btreemap!(
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
+        );
+        let config_file = create_app_config(&temp, &repos)?;
 
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("update");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
+        let deploy_files = vec![
+            (
+                temp.path().join("config_local").join("dir"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("config_local")
+                    .join("dir"),
+            ),
+            (
+                temp.path().join("home").join(".test.cfg"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("home")
+                    .join(".test.cfg"),
+            ),
+        ];
 
+        let repo_path = temp.path().join("dotfiles").join("rrcm-test");
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+Cloning into '{repo_path}'...
+"#,
+            repo_path = repo_path.to_string_lossy()
+        );
+        // update clone
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
             cmd.assert().success().stdout("");
-        } else if verbose {
+        } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(format!(
-                    r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                )))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                    status = Green.paint("    Deployed"),
-                )));
-        } else {
-            cmd.assert().success().stdout(format!(
-                r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-                status = Green.paint("    Deployed"),
-            ));
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(path, _)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Green.paint("    Deployed"),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         }
-
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
+        }
 
         temp.close()?;
         Ok(())
@@ -150,137 +174,87 @@ Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
     #[case(None, false, false)]
     #[case(None, true, false)]
     #[case(None, false, true)]
-    fn test_update_pull(
+    fn test_update_update(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
     ) -> Result<()> {
-        let temp = assert_fs::TempDir::new()?;
-        let config_file = create_app_config(&temp)?;
+        let temp = create_temp_dir()?;
+        let repos = btreemap!(
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
+        );
+        let config_file = create_app_config(&temp, &repos)?;
 
+        let deploy_files = vec![
+            (
+                temp.path().join("config_local").join("dir"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("config_local")
+                    .join("dir"),
+            ),
+            (
+                temp.path().join("home").join(".test.cfg"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("home")
+                    .join(".test.cfg"),
+            ),
+        ];
+
+        let repo_path = temp.path().join("dotfiles").join("rrcm-test");
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+Cloning into '{repo_path}'...
+"#,
+            repo_path = repo_path.to_string_lossy()
+        );
         // update clone
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("update");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
             cmd.assert().success().stdout("");
-        } else if verbose {
+        } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(format!(
-                    r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                )))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                    status = Green.paint("    Deployed"),
-                )));
-        } else {
-            cmd.assert().success().stdout(format!(
-                r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-                status = Green.paint("    Deployed"),
-            ));
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(path, _)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Green.paint("    Deployed"),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
+        }
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
         }
 
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+"#,
+            repo_path = repo_path.to_string_lossy()
         );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
-
         // update pull
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("update");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
             cmd.assert().success().stdout("");
         } else if verbose {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(format!(
-                    r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                )));
+                .stdout(predicate::str::starts_with(repo_string));
         } else {
-            cmd.assert().success().stdout(format!(
-                r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-            ));
+            cmd.assert().success().stdout(repo_string);
         }
 
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
+        }
 
         temp.close()?;
         Ok(())
@@ -291,141 +265,105 @@ Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
     #[case(None, false, false)]
     #[case(None, true, false)]
     #[case(None, false, true)]
-    fn test_undeploy(
+    fn test_update_undeploy_status(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
     ) -> Result<()> {
-        let temp = assert_fs::TempDir::new()?;
-        let config_file = create_app_config(&temp)?;
+        let temp = create_temp_dir()?;
+        let repos = btreemap!(
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
+        );
+        let config_file = create_app_config(&temp, &repos)?;
+
+        let deploy_files = vec![
+            (
+                temp.path().join("config_local").join("dir"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("config_local")
+                    .join("dir"),
+            ),
+            (
+                temp.path().join("home").join(".test.cfg"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("home")
+                    .join(".test.cfg"),
+            ),
+        ];
+
+        let repo_path = temp.path().join("dotfiles").join("rrcm-test");
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+Cloning into '{repo_path}'...
+"#,
+            repo_path = repo_path.to_string_lossy()
+        );
 
         // update clone
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("update");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
             cmd.assert().success().stdout("");
-        } else if verbose {
+        } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(format!(
-                    r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                )))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                    status = Green.paint("    Deployed"),
-                )));
-        } else {
-            cmd.assert().success().stdout(format!(
-                r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-                status = Green.paint("    Deployed"),
-            ));
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(path, _)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Green.paint("    Deployed"),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         }
-
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
+        }
 
         // undeploy
-        let mut cmd = Command::cargo_bin("rrcm")?;
+        let repo_string = "UnDeploy rrcm-test\n";
+        let mut cmd = create_cmd(&config_file, "undeploy", &repo, quiet, verbose)?;
         if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("undeploy");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-        let assert = cmd.assert();
-        assert.success();
-
-        pretty_assertions::assert_eq!(false, temp.path().join("home").join(".test.cfg").exists());
-
-        pretty_assertions::assert_eq!(false, temp.path().join("config_local").join("dir").exists());
-
-        // status
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("status");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-
-        if verbose {
+            cmd.assert().success().stdout("");
+        } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(
-                    r#"Repo rrcm-test
-"#,
-                ))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} config_local{delim}dir
-{status} home{delim}.test.cfg
-"#,
-                    status = Yellow.paint("  UnDeployed"),
-                    delim = MAIN_SEPARATOR,
-                )));
-        } else {
-            cmd.assert().success().stdout(format!(
-                r#"Repo rrcm-test
-{status} config_local{delim}dir
-{status} home{delim}.test.cfg
-"#,
-                status = Yellow.paint("  UnDeployed"),
-                delim = MAIN_SEPARATOR,
-            ));
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(_, target)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Yellow.paint("  UnDeployed"),
+                            target.to_string_lossy()
+                        ))
+                    })
+                }));
         }
+        for (path, _) in &deploy_files {
+            pretty_assertions::assert_eq!(false, path.exists());
+        }
+
+        // status
+        let repo_string = "Repo rrcm-test\n";
+        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose)?;
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::starts_with(repo_string))
+            .stdout(predicate::function(|output: &str| {
+                deploy_files.iter().all(|(_, target)| {
+                    output.contains(&format!(
+                        "{} {}",
+                        Yellow.paint("  UnDeployed"),
+                        target.to_string_lossy()
+                    ))
+                })
+            }));
 
         temp.close()?;
         Ok(())
@@ -437,183 +375,132 @@ Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
     #[case(None, true, false, false)]
     #[case(None, false, true, false)]
     #[case(None, false, false, true)]
-    fn test_deploy(
+    fn test_update_undeploy_deploy_status(
         #[case] repo: Option<String>,
         #[case] quiet: bool,
         #[case] verbose: bool,
         #[case] force: bool,
     ) -> Result<()> {
-        let temp = assert_fs::TempDir::new()?.into_persistent();
-        let config_file = create_app_config(&temp)?;
+        let temp = create_temp_dir()?;
+        let repos = btreemap!(
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
+        );
+        let config_file = create_app_config(&temp, &repos)?;
 
-        // update
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("update");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
+        let deploy_files = vec![
+            (
+                temp.path().join("config_local").join("dir"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("config_local")
+                    .join("dir"),
+            ),
+            (
+                temp.path().join("home").join(".test.cfg"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("home")
+                    .join(".test.cfg"),
+            ),
+        ];
 
+        let repo_path = temp.path().join("dotfiles").join("rrcm-test");
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+Cloning into '{repo_path}'...
+"#,
+            repo_path = repo_path.to_string_lossy()
+        );
+
+        // update clone
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
             cmd.assert().success().stdout("");
-        } else if verbose {
+        } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(format!(
-                    r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                )))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                    status = Green.paint("    Deployed"),
-                )));
-        } else {
-            cmd.assert().success().stdout(format!(
-                r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-                status = Green.paint("    Deployed"),
-            ));
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(path, _)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Green.paint("    Deployed"),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         }
-
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
+        }
 
         // undeploy
-        let mut cmd = Command::cargo_bin("rrcm")?;
+        let repo_string = "UnDeploy rrcm-test\n";
+        let mut cmd = create_cmd(&config_file, "undeploy", &repo, quiet, verbose)?;
         if quiet {
-            cmd.arg("--quiet");
+            cmd.assert().success().stdout("");
+        } else {
+            cmd.assert()
+                .success()
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(_, target)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Yellow.paint("  UnDeployed"),
+                            target.to_string_lossy()
+                        ))
+                    })
+                }));
         }
-        if verbose {
-            cmd.arg("--verbose");
+        for (path, _) in &deploy_files {
+            pretty_assertions::assert_eq!(false, path.exists());
         }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("undeploy");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-        let assert = cmd.assert();
-        assert.success();
-
-        pretty_assertions::assert_eq!(false, temp.path().join("home").join(".test.cfg").exists());
-
-        pretty_assertions::assert_eq!(false, temp.path().join("config_local").join("dir").exists());
 
         // deploy
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("deploy");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
+        let repo_string = "Deploy rrcm-test\n";
+        let mut cmd = create_cmd(&config_file, "deploy", &repo, quiet, verbose)?;
         if force {
             cmd.arg("--force");
         }
-        let assert = cmd.assert();
-        assert.success();
-
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
-
-        // status
-        let mut cmd = Command::cargo_bin("rrcm")?;
         if quiet {
-            cmd.arg("--quiet");
-        }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("status");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-
-        if verbose {
+            cmd.assert().success().stdout("");
+        } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(
-                    r#"Repo rrcm-test
-"#,
-                ))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                    status = Green.paint("    Deployed"),
-                )));
-        } else {
-            cmd.assert().success().stdout(format!(
-                r#"Repo rrcm-test
-{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-                status = Green.paint("    Deployed"),
-            ));
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(path, _)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Green.paint("    Deployed"),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         }
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
+        }
+
+        // status
+        let repo_string = "Repo rrcm-test\n";
+        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose)?;
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::starts_with(repo_string))
+            .stdout(predicate::function(|output: &str| {
+                deploy_files.iter().all(|(path, _)| {
+                    output.contains(&format!(
+                        "{} {}",
+                        Green.paint("    Deployed"),
+                        path.to_string_lossy()
+                    ))
+                })
+            }));
 
         temp.close()?;
 
@@ -632,118 +519,177 @@ Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
         #[case] verbose: bool,
         #[case] force: bool,
     ) -> Result<()> {
-        let temp = assert_fs::TempDir::new()?;
-        let config_file = create_app_config(&temp)?;
+        let temp = create_temp_dir()?;
+        let repos = btreemap!(
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
+        );
+        let config_file = create_app_config(&temp, &repos)?;
 
-        // update
-        let mut cmd = Command::cargo_bin("rrcm")?;
+        let deploy_files = vec![
+            (
+                temp.path().join("config_local").join("dir"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("config_local")
+                    .join("dir"),
+            ),
+            (
+                temp.path().join("home").join(".test.cfg"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("home")
+                    .join(".test.cfg"),
+            ),
+        ];
+
+        let repo_path = temp.path().join("dotfiles").join("rrcm-test");
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+Cloning into '{repo_path}'...
+"#,
+            repo_path = repo_path.to_string_lossy()
+        );
+
+        // update clone
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
-            cmd.arg("--quiet");
+            cmd.assert().success().stdout("");
+        } else {
+            cmd.assert()
+                .success()
+                .stdout(predicate::str::starts_with(repo_string))
+                .stdout(predicate::function(|output: &str| {
+                    deploy_files.iter().all(|(path, _)| {
+                        output.contains(&format!(
+                            "{} {}",
+                            Green.paint("    Deployed"),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("update");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
         }
 
+        let repo_string = "Deploy rrcm-test\n";
+        // deploy
+        let mut cmd = create_cmd(&config_file, "deploy", &repo, quiet, verbose)?;
+        if force {
+            cmd.arg("--force");
+        }
         if quiet {
             cmd.assert().success().stdout("");
         } else if verbose {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::starts_with(format!(
-                    r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                )))
-                .stdout(predicate::str::ends_with(format!(
-                    r#"{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                    temp = temp.path().to_string_lossy(),
-                    delim = MAIN_SEPARATOR,
-                    status = Green.paint("    Deployed"),
-                )));
+                .stdout(predicate::str::starts_with(repo_string));
         } else {
-            cmd.assert().success().stdout(format!(
-                r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {temp}{delim}dotfiles{delim}rrcm-test
-Cloning into '{temp}{delim}dotfiles{delim}rrcm-test'...
-{status} {temp}{delim}config_local{delim}dir
-{status} {temp}{delim}home{delim}.test.cfg
-"#,
-                temp = temp.path().to_string_lossy(),
-                delim = MAIN_SEPARATOR,
-                status = Green.paint("    Deployed"),
-            ));
+            cmd.assert().success().stdout(repo_string);
         }
 
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
-
-        // deploy
-        let mut cmd = Command::cargo_bin("rrcm")?;
-        if quiet {
-            cmd.arg("--quiet");
+        for (path, target) in &deploy_files {
+            assert_symlink(path, target)?;
         }
-        if verbose {
-            cmd.arg("--verbose");
-        }
-        cmd.arg("--config").arg(config_file.path());
-        cmd.arg("deploy");
-        if let Some(repo) = &repo {
-            cmd.arg(repo);
-        }
-        if force {
-            cmd.arg("--force");
-        }
-        let assert = cmd.assert();
-        assert.success();
 
-        pretty_assertions::assert_eq!(true, temp.path().join("home").join(".test.cfg").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("home").join(".test.cfg"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("home")
-                .join(".test.cfg")
-        );
-
-        pretty_assertions::assert_eq!(true, temp.path().join("config_local").join("dir").exists());
-        pretty_assertions::assert_eq!(
-            fs::read_link(temp.path().join("config_local").join("dir"))?,
-            temp.path()
-                .join("dotfiles")
-                .join("rrcm-test")
-                .join("config_local")
-                .join("dir")
-        );
         temp.close()?;
 
+        Ok(())
+    }
+
+    #[rstest]
+    #[case(Some("rrcm-test".to_owned()), false, false)]
+    #[case(None, false, false)]
+    #[case(None, true, false)]
+    #[case(None, false, true)]
+    #[case(None, false, false)]
+    fn test_deploy_error(
+        #[case] repo: Option<String>,
+        #[case] quiet: bool,
+        #[case] verbose: bool,
+    ) -> Result<()> {
+        let temp = create_temp_dir()?;
+        let repos = btreemap!(
+            String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
+        );
+        let config_file = create_app_config(&temp, &repos)?;
+
+        let deploy_files = vec![
+            (
+                temp.path().join("config_local").join("dir"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("config_local")
+                    .join("dir"),
+            ),
+            (
+                temp.path().join("home").join(".test.cfg"),
+                temp.path()
+                    .join("dotfiles")
+                    .join("rrcm-test")
+                    .join("home")
+                    .join(".test.cfg"),
+            ),
+        ];
+
+        let repo_path = temp.path().join("dotfiles").join("rrcm-test");
+        let repo_string = format!(
+            r#"Update rrcm-test
+  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+Cloning into '{repo_path}'...
+"#,
+            repo_path = repo_path.to_string_lossy()
+        );
+
+        for (path, _) in &deploy_files {
+            OpenOptions::new().write(true).create(true).open(path)?;
+        }
+
+        let stderr_string = format!("{}{}", Red.paint("[ERROR] "), "Failed to deploy");
+
+        // update clone
+        let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
+        if quiet {
+            cmd.assert()
+                .success()
+                .stdout("")
+                .stderr(predicate::str::contains(&stderr_string));
+        } else if verbose {
+            cmd.assert()
+                .success()
+                .stdout(predicate::str::starts_with(&repo_string))
+                .stderr(predicate::str::contains(&stderr_string));
+        } else {
+            cmd.assert()
+                .success()
+                .stdout(repo_string.clone())
+                .stderr(predicate::str::contains(&stderr_string));
+        }
+        for (path, _) in &deploy_files {
+            pretty_assertions::assert_eq!(path.is_symlink(), false);
+        }
+
+        let repo_string = "Repo rrcm-test\n";
+        // status
+        let mut cmd = create_cmd(&config_file, "status", &repo, quiet, verbose)?;
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::starts_with(repo_string))
+            .stdout(predicate::function(|output: &str| {
+                deploy_files.iter().all(|(path, _)| {
+                    output.contains(&format!(
+                        "{} {}",
+                        Red.paint("    Conflict"),
+                        path.to_string_lossy()
+                    ))
+                })
+            }));
+
+        temp.close()?;
         Ok(())
     }
 }

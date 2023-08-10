@@ -219,7 +219,7 @@ fn main() {
 
 fn get_log_level(log: &LogArgs) -> LevelFilter {
     if log.quiet {
-        LevelFilter::Off
+        LevelFilter::Error
     } else if log.trace {
         LevelFilter::Trace
     } else if log.debug {
@@ -252,7 +252,7 @@ mod tests {
     #[case(false, false, false, true, LevelFilter::Info)]
     #[case(false, false, true, false, LevelFilter::Debug)]
     #[case(false, true, false, false, LevelFilter::Trace)]
-    #[case(true, false, false, false, LevelFilter::Off)]
+    #[case(true, false, false, false, LevelFilter::Error)]
     fn test_get_log_level(
         #[case] quiet: bool,
         #[case] trace: bool,

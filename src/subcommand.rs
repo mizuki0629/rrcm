@@ -94,7 +94,7 @@ where
                 })?;
 
                 if !quiet {
-                    print_deploy_status(path, &DeployStatus::Deployed, &from, &to)?;
+                    print_deploy_status(&DeployStatus::Deployed, &from, &to)?;
                 }
                 Ok((from, to))
             }
@@ -114,7 +114,7 @@ where
                     })?;
 
                     if !quiet {
-                        print_deploy_status(path, &DeployStatus::Deployed, &from, &to)?;
+                        print_deploy_status(&DeployStatus::Deployed, &from, &to)?;
                     }
                     return Ok((from, to));
                 }
@@ -213,7 +213,7 @@ where
                     .with_context(|| format!("Failed to remove file {:}", to.to_string_lossy()))?;
 
                 if !quiet {
-                    print_deploy_status(path, &DeployStatus::UnDeployed, &from, &to)?;
+                    print_deploy_status(&DeployStatus::UnDeployed, &from, &to)?;
                 }
                 Ok((from, to))
             }
@@ -272,11 +272,10 @@ pub fn undeploy(app_config: &AppConfig, repo: &Option<String>, quiet: bool) -> R
     Ok(())
 }
 
-fn print_deploy_status<P, Q, R>(path: P, status: &DeployStatus, from: Q, to: R) -> Result<()>
+fn print_deploy_status<P, Q>(status: &DeployStatus, from: P, to: Q) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
-    R: AsRef<Path>,
 {
     println!(
         "{:>12} {}",
@@ -294,7 +293,7 @@ where
                 .to_string(),
         },
         {
-            let from_str = from.as_ref().strip_prefix(path)?.to_string_lossy();
+            let from_str = from.as_ref().to_string_lossy();
             let to_str = to.as_ref().to_string_lossy();
 
             match &status {
@@ -351,7 +350,7 @@ where
                 status,
                 DeployStatus::Deployed | DeployStatus::UnDeployed | DeployStatus::Conflict { .. }
             ) {
-                print_deploy_status(path, &status, from, to).expect("print error");
+                print_deploy_status(&status, from, to).expect("print error");
             }
         });
 
