@@ -99,12 +99,10 @@
 //! rrcm status
 //! ```
 //!
+use anyhow::{Ok, Result};
+use clap::{Parser, Subcommand};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use std::path::PathBuf;
-
-use anyhow::{Ok, Result};
-
-use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -182,8 +180,8 @@ fn main() {
         let args = Args::parse();
         init_logger(&args.log)?;
 
-        let app_config = if let Some(config_path) = args.config {
-            rrcm::config::load_app_config(config_path)?
+        let app_config = if let Some(ref path) = args.config {
+            rrcm::config::load_app_config(path)?
         } else {
             let config_path = dirs::config_dir()
                 .ok_or_else(|| anyhow::anyhow!("config directory not found"))?
@@ -193,16 +191,16 @@ fn main() {
         };
 
         match args.subcommand {
-            SubCommands::Status { repo } => {
+            SubCommands::Status { ref repo } => {
                 rrcm::status(&app_config, repo)?;
             }
-            SubCommands::Deploy { repo, force } => {
+            SubCommands::Deploy { ref repo, force } => {
                 rrcm::deploy(&app_config, repo, args.log.quiet, force)?;
             }
-            SubCommands::Undeploy { repo } => {
+            SubCommands::Undeploy { ref repo } => {
                 rrcm::undeploy(&app_config, repo, args.log.quiet)?;
             }
-            SubCommands::Update { repo } => {
+            SubCommands::Update { ref repo } => {
                 rrcm::update(
                     &app_config,
                     repo,
@@ -219,9 +217,9 @@ fn main() {
     });
 }
 
-fn init_logger(log: &LogArgs) -> Result<()> {
-    let level = if log.quiet {
-        LevelFilter::Off
+fn get_log_level(log: &LogArgs) -> LevelFilter {
+    if log.quiet {
+        LevelFilter::Error
     } else if log.trace {
         LevelFilter::Trace
     } else if log.debug {
@@ -230,13 +228,44 @@ fn init_logger(log: &LogArgs) -> Result<()> {
         LevelFilter::Info
     } else {
         LevelFilter::Error
-    };
+    }
+}
 
+fn init_logger(log: &LogArgs) -> Result<()> {
     CombinedLogger::init(vec![TermLogger::new(
-        level,
+        get_log_level(log),
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
     )])?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case(false, false, false, false, LevelFilter::Error)]
+    #[case(false, false, false, true, LevelFilter::Info)]
+    #[case(false, false, true, false, LevelFilter::Debug)]
+    #[case(false, true, false, false, LevelFilter::Trace)]
+    #[case(true, false, false, false, LevelFilter::Error)]
+    fn test_get_log_level(
+        #[case] quiet: bool,
+        #[case] trace: bool,
+        #[case] debug: bool,
+        #[case] verbose: bool,
+        #[case] expected: LevelFilter,
+    ) {
+        let log = LogArgs {
+            quiet,
+            trace,
+            debug,
+            verbose,
+        };
+        assert_eq!(get_log_level(&log), expected);
+    }
 }

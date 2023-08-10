@@ -5,15 +5,10 @@
 use crate::config::AppConfig;
 use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
-use crate::path::strip_home;
+use ansi_term::Colour::{Fixed, Green, Red, Yellow};
 use anyhow::{bail, Context as _, Ok, Result};
-use crossterm::{
-    style::{Color, Print, ResetColor, SetForegroundColor},
-    ExecutableCommand,
-};
 use itertools::Itertools;
 use std::fs::{read_dir, ReadDir};
-use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -99,7 +94,7 @@ where
                 })?;
 
                 if !quiet {
-                    print_deploy_status(path, &DeployStatus::Deployed, &from, &to)?;
+                    print_deploy_status(&DeployStatus::Deployed, &from, &to)?;
                 }
                 Ok((from, to))
             }
@@ -119,7 +114,7 @@ where
                     })?;
 
                     if !quiet {
-                        print_deploy_status(path, &DeployStatus::Deployed, &from, &to)?;
+                        print_deploy_status(&DeployStatus::Deployed, &from, &to)?;
                     }
                     return Ok((from, to));
                 }
@@ -144,7 +139,7 @@ where
 
 pub fn deploy(
     app_config: &AppConfig,
-    repo: Option<String>,
+    repo: &Option<String>,
     quiet: bool,
     force: bool,
 ) -> Result<()> {
@@ -218,7 +213,7 @@ where
                     .with_context(|| format!("Failed to remove file {:}", to.to_string_lossy()))?;
 
                 if !quiet {
-                    print_deploy_status(path, &DeployStatus::UnDeployed, &from, &to)?;
+                    print_deploy_status(&DeployStatus::UnDeployed, &from, &to)?;
                 }
                 Ok((from, to))
             }
@@ -239,16 +234,7 @@ where
 /// # Arguments
 /// * `repo` - repo name
 /// * `quiet` - quiet mode
-/// # Example
-/// ```no_run
-/// use rrcm::undeploy;
-/// use rrcm::config::load_app_config;
-/// let path = std::path::PathBuf::from("/path/to/config.toml");
-/// let app_config = load_app_config(path).unwrap();
-/// undeploy(&app_config, None, false);
-/// ```
-///     
-pub fn undeploy(app_config: &AppConfig, repo: Option<String>, quiet: bool) -> Result<()> {
+pub fn undeploy(app_config: &AppConfig, repo: &Option<String>, quiet: bool) -> Result<()> {
     log::trace!("undeploy({:?}, {:?}, {:?})", app_config, repo, quiet);
 
     app_config
@@ -286,25 +272,29 @@ pub fn undeploy(app_config: &AppConfig, repo: Option<String>, quiet: bool) -> Re
     Ok(())
 }
 
-fn print_deploy_status<P, Q, R>(path: P, status: &DeployStatus, from: Q, to: R) -> Result<()>
+fn print_deploy_status<P, Q>(status: &DeployStatus, from: P, to: Q) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
-    R: AsRef<Path>,
 {
-    stdout()
-        .execute(match status {
-            DeployStatus::Deployed => SetForegroundColor(Color::Green),
-            DeployStatus::UnDeployed => SetForegroundColor(Color::Yellow),
-            DeployStatus::Conflict { .. } => SetForegroundColor(Color::Red),
-            DeployStatus::UnManaged => SetForegroundColor(Color::Grey),
-        })?
-        .execute(Print(format!("{:>12}", format!("{:}", status))))?
-        .execute(ResetColor)?
-        .execute(Print(format!(" {}\n", {
-            let from_str = from.as_ref().strip_prefix(path)?.to_string_lossy();
-            let to = strip_home(&to);
-            let to_str = to.to_string_lossy();
+    println!(
+        "{:>12} {}",
+        match status {
+            DeployStatus::Deployed => Green
+                .paint(format!("{:>12}", status.to_string()))
+                .to_string(),
+            DeployStatus::UnDeployed => Yellow
+                .paint(format!("{:>12}", status.to_string()))
+                .to_string(),
+            DeployStatus::Conflict { .. } =>
+                Red.paint(format!("{:>12}", status.to_string())).to_string(),
+            DeployStatus::UnManaged => Fixed(8)
+                .paint(format!("{:>12}", status.to_string()))
+                .to_string(),
+        },
+        {
+            let from_str = from.as_ref().to_string_lossy();
+            let to_str = to.as_ref().to_string_lossy();
 
             match &status {
                 DeployStatus::Deployed => {
@@ -316,7 +306,8 @@ where
                     format!("{:<20} {:}", to_str, cause,)
                 }
             }
-        })))?;
+        }
+    );
     Ok(())
 }
 
@@ -342,7 +333,7 @@ where
             log::info!(
                 "{:} => {:}",
                 from_path.strip_prefix(path).unwrap().to_string_lossy(),
-                strip_home(to_path).to_string_lossy()
+                to_path.to_string_lossy()
             );
         }
     }
@@ -359,14 +350,14 @@ where
                 status,
                 DeployStatus::Deployed | DeployStatus::UnDeployed | DeployStatus::Conflict { .. }
             ) {
-                print_deploy_status(path, &status, from, to).expect("print error");
+                print_deploy_status(&status, from, to).expect("print error");
             }
         });
 
     Ok(())
 }
 
-pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
+pub fn status(app_config: &AppConfig, repo: &Option<String>) -> Result<()> {
     log::trace!("status({:?}, {:?})", app_config, repo);
     app_config
         .repos
@@ -417,25 +408,9 @@ pub fn status(app_config: &AppConfig, repo: Option<String>) -> Result<()> {
 /// * `repo` - repository name
 /// * `quiet` - quiet mode
 /// * `verbose` - verbose mode
-///
-/// # Example
-/// ```no_run
-/// use rrcm::update;
-/// use rrcm::config::load_app_config;
-/// let path = std::path::PathBuf::from("/path/to/config.toml");
-/// let app_config = load_app_config(path).unwrap();
-/// update(&app_config, None, false, false);
-/// ```
-/// ```no_run
-/// use rrcm::update;
-/// use rrcm::config::load_app_config;
-/// let path = std::path::PathBuf::from("/path/to/config.toml");
-/// let app_config = load_app_config(path).unwrap();
-/// update(&app_config, Some("repo".to_string()), false, false);
-/// ```
 pub fn update(
     app_config: &AppConfig,
-    repo: Option<String>,
+    repo: &Option<String>,
     quiet: bool,
     verbose: bool,
 ) -> Result<()> {
