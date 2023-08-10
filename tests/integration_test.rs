@@ -649,25 +649,34 @@ Cloning into '{repo_path}'...
             OpenOptions::new().write(true).create(true).open(path)?;
         }
 
-        let stderr_string = format!("{}{}", Red.paint("[ERROR] "), "Failed to deploy");
-
         // update clone
         let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose)?;
         if quiet {
             cmd.assert()
                 .success()
                 .stdout("")
-                .stderr(predicate::str::contains(&stderr_string));
-        } else if verbose {
-            cmd.assert()
-                .success()
-                .stdout(predicate::str::starts_with(&repo_string))
-                .stderr(predicate::str::contains(&stderr_string));
+                .stderr(predicate::function(|output: &str| {
+                    deploy_files.iter().any(|(path, target)| {
+                        output.contains(&format!(
+                            "Failed to deploy {} -> {}",
+                            target.to_string_lossy(),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         } else {
             cmd.assert()
                 .success()
-                .stdout(repo_string.clone())
-                .stderr(predicate::str::contains(&stderr_string));
+                .stdout(predicate::str::starts_with(&repo_string))
+                .stderr(predicate::function(|output: &str| {
+                    deploy_files.iter().any(|(path, target)| {
+                        output.contains(&format!(
+                            "Failed to deploy {} -> {}",
+                            target.to_string_lossy(),
+                            path.to_string_lossy()
+                        ))
+                    })
+                }));
         }
         for (path, _) in &deploy_files {
             pretty_assertions::assert_eq!(path.is_symlink(), false);
