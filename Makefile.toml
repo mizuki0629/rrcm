@@ -74,3 +74,10 @@ run_task = { name = "llvm-cov" }
 [tasks.echo]
 command = "echo"
 args = ["${CARGO_MAKE_CI}", "${CARGO_MAKE_PR}", "${CARGO_MAKE_CI_BRANCH_NAME}", "${CARGO_MAKE_CI_VENDOR}"]
+
+[tasks.audit]
+description = "Audit dependencies for security vulnerabilities."
+category = "Test"
+command = "cargo"
+args = ["audit"]
+install_crate = "cargo-audit"

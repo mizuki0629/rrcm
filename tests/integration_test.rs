@@ -4,11 +4,12 @@ use assert_cmd::Command;
 use assert_fs::fixture::ChildPath;
 use assert_fs::prelude::*;
 use assert_fs::TempDir;
-use maplit::btreemap;
+use indexmap::{indexmap, IndexMap};
+use indoc::formatdoc;
 use predicates::prelude::*;
 use rrcm::config::AppConfig;
 use rrcm::config::OsPath;
-use std::collections::BTreeMap;
+use rstest::rstest;
 use std::fs;
 use std::fs::OpenOptions;
 
@@ -18,10 +19,10 @@ fn create_temp_dir() -> Result<TempDir> {
 
 fn create_app_config(
     temp: &assert_fs::TempDir,
-    repos: &BTreeMap<String, String>,
+    repos: &IndexMap<String, String>,
 ) -> Result<ChildPath> {
     let tmpdir = temp.path().to_string_lossy();
-    let config_file = temp.child("config.toml");
+    let config_file = temp.child("config.yaml");
 
     let dotfiles = OsPath {
         windows: Some(format!("{}\\dotfiles", tmpdir)),
@@ -29,7 +30,7 @@ fn create_app_config(
         linux: Some(format!("{}/dotfiles", tmpdir)),
     };
 
-    let deploy = btreemap!(
+    let deploy = indexmap!(
         String::from("home") => OsPath {
             windows: Some(format!("{}\\home",tmpdir)),
             mac: Some(format!("{}/home",tmpdir)),
@@ -51,7 +52,7 @@ fn create_app_config(
     fs::create_dir(temp.path().join("config"))?;
     fs::create_dir(temp.path().join("config_local"))?;
 
-    config_file.write_str(&toml::to_string(&AppConfig {
+    config_file.write_str(&serde_yaml::to_string(&AppConfig {
         dotfiles,
         deploy,
         repos: repos.clone(),
@@ -103,10 +104,61 @@ where
     Ok(())
 }
 
+#[rstest]
+#[case(true, true, true, false, false)]
+#[case(true, true, false, true, false)]
+#[case(true, true, false, false, true)]
+#[case(true, false, true, true, false)]
+#[case(true, false, true, false, true)]
+#[case(true, false, false, true, true)]
+#[case(false, true, true, true, false)]
+#[case(false, true, true, false, true)]
+#[case(false, true, false, true, true)]
+#[case(false, false, true, true, true)]
+fn test_log_arg_error(
+    #[case] is_short: bool,
+    #[case] quiet: bool,
+    #[case] verbose: bool,
+    #[case] trace: bool,
+    #[case] debug: bool,
+) -> Result<()> {
+    let mut cmd = Command::cargo_bin("rrcm")?;
+    if quiet {
+        if is_short {
+            cmd.arg("-q");
+        } else {
+            cmd.arg("--quiet");
+        }
+    }
+    if verbose {
+        if is_short {
+            cmd.arg("-v");
+        } else {
+            cmd.arg("--verbose");
+        }
+    }
+    if trace {
+        if is_short {
+            cmd.arg("-t");
+        } else {
+            cmd.arg("--trace");
+        }
+    }
+    if debug {
+        if is_short {
+            cmd.arg("-d");
+        } else {
+            cmd.arg("--debug");
+        }
+    }
+    cmd.arg("status");
+    cmd.assert().failure().stdout("");
+    Ok(())
+}
+
 mod win_need_admin {
 
     use super::*;
-    use rstest::rstest;
 
     #[rstest]
     #[case(Some("rrcm-test".to_owned()), false, false, false, false)]
@@ -123,7 +175,7 @@ mod win_need_admin {
         #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
-        let repos = btreemap!(
+        let repos = indexmap!(
             String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
         );
         let config_file = create_app_config(&temp, &repos)?;
@@ -148,11 +200,12 @@ mod win_need_admin {
         ];
 
         let repo_path = temp.path().join("dotfiles").join("rrcm-test");
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-Cloning into '{repo_path}'...
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            Cloning into '{repo_path}'...
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
         // update clone
@@ -195,7 +248,7 @@ Cloning into '{repo_path}'...
         #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
-        let repos = btreemap!(
+        let repos = indexmap!(
             String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
         );
         let config_file = create_app_config(&temp, &repos)?;
@@ -220,11 +273,12 @@ Cloning into '{repo_path}'...
         ];
 
         let repo_path = temp.path().join("dotfiles").join("rrcm-test");
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-Cloning into '{repo_path}'...
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            Cloning into '{repo_path}'...
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
         // update clone
@@ -249,10 +303,11 @@ Cloning into '{repo_path}'...
             assert_symlink(path, target)?;
         }
 
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
         // update pull
@@ -289,7 +344,7 @@ Cloning into '{repo_path}'...
         #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
-        let repos = btreemap!(
+        let repos = indexmap!(
             String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
         );
         let config_file = create_app_config(&temp, &repos)?;
@@ -314,11 +369,12 @@ Cloning into '{repo_path}'...
         ];
 
         let repo_path = temp.path().join("dotfiles").join("rrcm-test");
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-Cloning into '{repo_path}'...
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            Cloning into '{repo_path}'...
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
 
@@ -412,7 +468,7 @@ Cloning into '{repo_path}'...
         #[case] force: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
-        let repos = btreemap!(
+        let repos = indexmap!(
             String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
         );
         let config_file = create_app_config(&temp, &repos)?;
@@ -437,11 +493,12 @@ Cloning into '{repo_path}'...
         ];
 
         let repo_path = temp.path().join("dotfiles").join("rrcm-test");
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-Cloning into '{repo_path}'...
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            Cloning into '{repo_path}'...
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
 
@@ -562,7 +619,7 @@ Cloning into '{repo_path}'...
         #[case] force: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
-        let repos = btreemap!(
+        let repos = indexmap!(
             String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
         );
         let config_file = create_app_config(&temp, &repos)?;
@@ -587,11 +644,12 @@ Cloning into '{repo_path}'...
         ];
 
         let repo_path = temp.path().join("dotfiles").join("rrcm-test");
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-Cloning into '{repo_path}'...
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            Cloning into '{repo_path}'...
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
 
@@ -656,7 +714,7 @@ Cloning into '{repo_path}'...
         #[case] debug: bool,
     ) -> Result<()> {
         let temp = create_temp_dir()?;
-        let repos = btreemap!(
+        let repos = indexmap!(
             String::from("rrcm-test") => String::from("https://github.com/mizuki0629/rrcm-test.git"),
         );
         let config_file = create_app_config(&temp, &repos)?;
@@ -681,11 +739,12 @@ Cloning into '{repo_path}'...
         ];
 
         let repo_path = temp.path().join("dotfiles").join("rrcm-test");
-        let repo_string = format!(
-            r#"Update rrcm-test
-  https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-Cloning into '{repo_path}'...
-"#,
+        let repo_string = formatdoc!(
+            r#"
+            Update rrcm-test
+              https://github.com/mizuki0629/rrcm-test.git => {repo_path}
+            Cloning into '{repo_path}'...
+            "#,
             repo_path = repo_path.to_string_lossy()
         );
 

@@ -146,6 +146,8 @@ struct LogArgs {
 
 #[derive(Debug, Subcommand)]
 enum SubCommands {
+    /// Initialize configuration file.
+    Init {},
     /// Print deploy status.
     Status {
         /// repository name
@@ -180,27 +182,33 @@ fn main() {
         let args = Args::parse();
         init_logger(&args.log)?;
 
-        let app_config = if let Some(ref path) = args.config {
-            rrcm::config::load_app_config(path)?
+        let config = if let Some(ref path) = args.config {
+            path.clone()
         } else {
-            let config_path = dirs::config_dir()
+            dirs::config_dir()
                 .ok_or_else(|| anyhow::anyhow!("config directory not found"))?
                 .join("rrcm")
-                .join("config.toml");
-            rrcm::config::load_app_config(config_path)?
+                .join("config.yaml")
         };
 
         match args.subcommand {
+            SubCommands::Init {} => {
+                rrcm::config::init_app_config(&config)?;
+            }
             SubCommands::Status { ref repo } => {
+                let app_config = rrcm::config::load_app_config(&config)?;
                 rrcm::status(&app_config, repo)?;
             }
             SubCommands::Deploy { ref repo, force } => {
+                let app_config = rrcm::config::load_app_config(&config)?;
                 rrcm::deploy(&app_config, repo, args.log.quiet, force)?;
             }
             SubCommands::Undeploy { ref repo } => {
+                let app_config = rrcm::config::load_app_config(&config)?;
                 rrcm::undeploy(&app_config, repo, args.log.quiet)?;
             }
             SubCommands::Update { ref repo } => {
+                let app_config = rrcm::config::load_app_config(&config)?;
                 rrcm::update(
                     &app_config,
                     repo,
