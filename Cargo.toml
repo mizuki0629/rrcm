@@ -17,23 +17,23 @@ itertools = "0.11.0"
 path_abs = "0.5.1"
 trash = "3.0.6"
 dunce = "1.0.3"
-confy = { version = "0.5.1" }
+confy = { version = "0.5.1", features = ["yaml_conf"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 maplit = "1.0.2"
 dirs-sys = "0.4.1"
-url = { version = "2.4.0", features = ["serde"] }
 log = "0.4.19"
 simplelog = "0.12.1"
 ansi_term = "0.12.1"
 serde_yaml = "0.9"
+indexmap = { version = "2.0.0", features = ["serde"] }
 
 [dev-dependencies]
 rstest = "0.18.1"
 assert_cmd = "2.0.12"
 assert_fs = "1.0.13"
 pretty_assertions = "1.4.0"
-toml = "0.7.6"
 predicates = "3.0.3"
+indoc = "2.0.3"
 
 [target.'cfg(unix)'.dev-dependencies]
 nix = "0.22.0"

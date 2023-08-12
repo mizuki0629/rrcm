@@ -1,9 +1,8 @@
 use crate::path::expand_env_var;
 use anyhow::ensure;
 use anyhow::{bail, Ok, Result};
-use maplit::btreemap;
+use indexmap::{indexmap, IndexMap};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -44,8 +43,8 @@ impl OsPath {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub dotfiles: OsPath,
-    pub deploy: BTreeMap<String, OsPath>,
-    pub repos: BTreeMap<String, String>,
+    pub deploy: IndexMap<String, OsPath>,
+    pub repos: IndexMap<String, String>,
 }
 
 impl Default for AppConfig {
@@ -56,7 +55,7 @@ impl Default for AppConfig {
             linux: Some("${HOME}/.dotfiles".to_string()),
         };
 
-        let deploy = btreemap!(
+        let deploy = indexmap!(
             String::from("home") => OsPath {
                 windows: Some("%USERPROFILE%".to_string()),
                 mac: Some("${HOME}".to_string()),
@@ -74,7 +73,7 @@ impl Default for AppConfig {
             },
         );
 
-        let repos = BTreeMap::new();
+        let repos = IndexMap::new();
 
         Self {
             dotfiles,
@@ -93,6 +92,20 @@ impl AppConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Repo {
     pub url: String,
+}
+
+pub fn init_app_config<P>(path: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    ensure!(
+        !path.exists(),
+        format!("{} already exists.", path.display())
+    );
+    let config = AppConfig::default();
+    confy::store_path(path, &config)?;
+    Ok(())
 }
 
 pub fn load_app_config<P>(path: P) -> Result<AppConfig>
