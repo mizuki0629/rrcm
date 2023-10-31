@@ -413,13 +413,15 @@ pub fn update(
     repo: &Option<String>,
     quiet: bool,
     verbose: bool,
+    force: bool,
 ) -> Result<()> {
     log::trace!(
-        "update({:?}, {:?}, {:?}, {:?})",
+        "update({:?}, {:?}, {:?}, {:?}, {:?})",
         app_config,
         repo,
         quiet,
-        verbose
+        verbose,
+        force
     );
 
     app_config
@@ -477,7 +479,7 @@ pub fn update(
             }
 
             // deploy
-            deploy_impl(app_config, &path, quiet, false)?;
+            deploy_impl(app_config, &path, quiet, force)?;
 
             Ok(())
         })
