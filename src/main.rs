@@ -175,6 +175,9 @@ enum SubCommands {
         /// repository name
         #[clap(required = false, ignore_case = true)]
         repo: Option<String>,
+        /// if eists file, remove and deploy.  
+        #[clap(short, long, default_value_t = false)]
+        force: bool,
     },
 }
 
@@ -208,13 +211,14 @@ fn main() {
                 let app_config = rrcm::config::load_app_config(&config)?;
                 rrcm::undeploy(&app_config, repo, args.log.quiet)?;
             }
-            SubCommands::Update { ref repo } => {
+            SubCommands::Update { ref repo, force } => {
                 let app_config = rrcm::config::load_app_config(&config)?;
                 rrcm::update(
                     &app_config,
                     repo,
                     args.log.quiet,
                     args.log.verbose || args.log.debug || args.log.trace,
+                    force,
                 )?;
             }
         }
