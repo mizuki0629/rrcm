@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  ci:
+    image: mizuki0629/rrcm-ci
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - .:/rrcm
+    working_dir: /rrcm
