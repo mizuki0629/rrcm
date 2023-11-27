@@ -7,7 +7,7 @@
 //! and different path separator (e.g. C:\Users\username\foo\bar.txt)
 use anyhow::Context as _;
 use anyhow::{bail, Ok, Result};
-use dirs::{cache_dir, config_dir, data_dir, runtime_dir, state_dir};
+use dirs::{cache_dir, config_dir, data_dir, state_dir};
 use std::path::PathBuf;
 
 /// Get default path of XDG Base Directory
@@ -18,7 +18,6 @@ use std::path::PathBuf;
 /// | XDG_CONFIG_HOME | $HOME/.config |
 /// | XDG_DATA_HOME | $HOME/.local/share |
 /// | XDG_CACHE_HOME | $HOME/.cache |
-/// | XDG_RUNTIME_DIR | /run/user/$UID |
 /// | XDG_STATE_HOME | $HOME/.local/state |
 fn get_xdg_default(s: &str) -> Result<String> {
     let mut path = PathBuf::new();
@@ -31,9 +30,6 @@ fn get_xdg_default(s: &str) -> Result<String> {
         }
         "XDG_CACHE_HOME" => {
             path.push(cache_dir().unwrap());
-        }
-        "XDG_RUNTIME_DIR" => {
-            path.push(runtime_dir().unwrap());
         }
         "XDG_STATE_HOME" => {
             path.push(state_dir().unwrap());
@@ -48,16 +44,11 @@ fn get_xdg_default(s: &str) -> Result<String> {
 /// - XDG_CONFIG_HOME
 /// - XDG_DATA_HOME
 /// - XDG_CACHE_HOME
-/// - XDG_RUNTIME_DIR
 /// - XDG_STATE_HOME
 fn is_xdg_base_directory(s: &str) -> bool {
     matches!(
         s,
-        "XDG_CONFIG_HOME"
-            | "XDG_DATA_HOME"
-            | "XDG_CACHE_HOME"
-            | "XDG_RUNTIME_DIR"
-            | "XDG_STATE_HOME"
+        "XDG_CONFIG_HOME" | "XDG_DATA_HOME" | "XDG_CACHE_HOME" | "XDG_STATE_HOME"
     )
 }
 
@@ -147,7 +138,6 @@ mod tests {
     #[case("XDG_CONFIG_HOME", true)]
     #[case("XDG_DATA_HOME", true)]
     #[case("XDG_CACHE_HOME", true)]
-    #[case("XDG_RUNTIME_DIR", true)]
     #[case("XDG_STATE_HOME", true)]
     #[case("XDG_CONFIG_HOME2", false)]
     fn test_is_xdg_base_directory(#[case] s: &str, #[case] expected: bool) {
@@ -158,7 +148,6 @@ mod tests {
     #[case("XDG_CONFIG_HOME", format!("{}/.config", std::env::var("HOME").unwrap()))]
     #[case("XDG_DATA_HOME", format!("{}/.local/share", std::env::var("HOME").unwrap()))]
     #[case("XDG_CACHE_HOME", format!("{}/.cache", std::env::var("HOME").unwrap()))]
-    #[case("XDG_RUNTIME_DIR", format!("/run/user/{}", nix::unistd::getuid().as_raw()))]
     #[case("XDG_STATE_HOME", format!("{}/.local/state", std::env::var("HOME").unwrap()))]
     fn test_get_xdg_default(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = get_xdg_default(s)?;

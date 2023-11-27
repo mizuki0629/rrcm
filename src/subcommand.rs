@@ -400,6 +400,54 @@ pub fn status(app_config: &AppConfig, repo: &Option<String>) -> Result<()> {
     Ok(())
 }
 
+fn git_update(
+    app_config: &AppConfig,
+    path: &Path,
+    url: &String,
+    quiet: bool,
+    verbose: bool,
+) -> Result<()> {
+    log::trace!("git_update({:?}, {:?})", app_config, path);
+
+    // update git repository
+    let mut git = Command::new("git");
+    if path.exists() {
+        git.arg("pull").current_dir(path);
+    } else {
+        git.arg("clone").arg(url).arg(path);
+        if verbose {
+            git.arg("-v");
+        }
+    }
+    if quiet {
+        git.arg("-q");
+    }
+
+    let output = git.output().with_context(|| {
+        format!(
+            "Failed to execute git {:}",
+            git.get_args().map(|s| s.to_string_lossy()).join(" ")
+        )
+    })?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = stderr.trim_end();
+    if !output.status.success() {
+        bail!("{}", stderr);
+    }
+
+    if !quiet && !stderr.is_empty() {
+        println!("{}", stderr);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = stdout.trim_end();
+    if !stdout.is_empty() {
+        log::info!("{}", stdout);
+    }
+
+    Ok(())
+}
+
 /// Update dotfiles from git repository and deploy.
 /// If repo is specified, update only specified repo.
 /// If repo is not specified, update all repos.
@@ -447,36 +495,7 @@ pub fn update(
                 println!("  {:} => {:}", url, path.to_string_lossy());
             }
 
-            // update git repository
-            let mut git = Command::new("git");
-            if path.exists() {
-                git.arg("pull").current_dir(&path);
-            } else {
-                git.arg("clone").arg(url).arg(&path);
-                if verbose {
-                    git.arg("-v");
-                }
-            }
-            if quiet {
-                git.arg("-q");
-            }
-
-            let output = git.output()?;
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stderr = stderr.trim_end();
-            if !output.status.success() {
-                bail!("{}", stderr);
-            }
-
-            if !quiet && !stderr.is_empty() {
-                println!("{}", stderr);
-            }
-
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stdout = stdout.trim_end();
-            if !stdout.is_empty() {
-                log::info!("{}", stdout);
-            }
+            git_update(app_config, &path, url, quiet, verbose)?;
 
             // deploy
             deploy_impl(app_config, &path, quiet, force)?;

@@ -204,7 +204,6 @@ mod win_need_admin {
             r#"
             Update rrcm-test
               https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-            Cloning into '{repo_path}'...
             "#,
             repo_path = repo_path.to_string_lossy()
         );
@@ -277,7 +276,6 @@ mod win_need_admin {
             r#"
             Update rrcm-test
               https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-            Cloning into '{repo_path}'...
             "#,
             repo_path = repo_path.to_string_lossy()
         );
@@ -373,7 +371,6 @@ mod win_need_admin {
             r#"
             Update rrcm-test
               https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-            Cloning into '{repo_path}'...
             "#,
             repo_path = repo_path.to_string_lossy()
         );
@@ -497,7 +494,6 @@ mod win_need_admin {
             r#"
             Update rrcm-test
               https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-            Cloning into '{repo_path}'...
             "#,
             repo_path = repo_path.to_string_lossy()
         );
@@ -648,7 +644,6 @@ mod win_need_admin {
             r#"
             Update rrcm-test
               https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-            Cloning into '{repo_path}'...
             "#,
             repo_path = repo_path.to_string_lossy()
         );
@@ -743,7 +738,6 @@ mod win_need_admin {
             r#"
             Update rrcm-test
               https://github.com/mizuki0629/rrcm-test.git => {repo_path}
-            Cloning into '{repo_path}'...
             "#,
             repo_path = repo_path.to_string_lossy()
         );

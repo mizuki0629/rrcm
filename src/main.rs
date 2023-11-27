@@ -84,7 +84,6 @@
 //!     - ${XDG_CONFIG_HOME}
 //!     - ${XDG_DATA_HOME}
 //!     - ${XDG_CACHE_HOME}
-//!     - ${XDG_RUNTIME_DIR}
 //! - Windows [Known Folder ID](https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid)
 //!     - %FOLDERID_RoamingAppData%
 //!     - %FOLDERID_LocalAppData%
