@@ -1,0 +1,2 @@
+tests/*.yaml    eol=lf
+tests/*.yml     eol=lf

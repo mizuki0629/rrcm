@@ -61,15 +61,7 @@ fn create_app_config(
     Ok(config_file)
 }
 
-fn create_cmd(
-    config_file: &assert_fs::fixture::ChildPath,
-    subcommand: &str,
-    repo: &Option<String>,
-    quiet: bool,
-    verbose: bool,
-    trace: bool,
-    debug: bool,
-) -> Result<Command> {
+fn create_cmd_base(quiet: bool, verbose: bool, trace: bool, debug: bool) -> Result<Command> {
     let mut cmd = Command::cargo_bin("rrcm")?;
     if quiet {
         cmd.arg("--quiet");
@@ -83,6 +75,19 @@ fn create_cmd(
     if debug {
         cmd.arg("--debug");
     }
+    Ok(cmd)
+}
+
+fn create_cmd(
+    config_file: &assert_fs::fixture::ChildPath,
+    subcommand: &str,
+    repo: &Option<String>,
+    quiet: bool,
+    verbose: bool,
+    trace: bool,
+    debug: bool,
+) -> Result<Command> {
+    let mut cmd = create_cmd_base(quiet, verbose, trace, debug)?;
     cmd.arg("--config").arg(config_file.path());
     cmd.arg(subcommand);
     if let Some(repo) = repo {
@@ -153,6 +158,33 @@ fn test_log_arg_error(
     }
     cmd.arg("status");
     cmd.assert().failure().stdout("");
+    Ok(())
+}
+
+#[rstest]
+#[case(false, false, false, false)]
+#[case(true, false, false, false)]
+#[case(false, true, false, false)]
+#[case(false, false, true, false)]
+#[case(false, false, false, true)]
+fn test_init_url(
+    #[case] quiet: bool,
+    #[case] verbose: bool,
+    #[case] trace: bool,
+    #[case] debug: bool,
+) -> Result<()> {
+    let temp = create_temp_dir()?;
+    let mut cmd = create_cmd_base(quiet, verbose, trace, debug)?;
+    cmd.arg("--config").arg(temp.path().join("config.yaml"));
+    cmd.arg("init");
+    cmd.arg("https://gist.githubusercontent.com/mizuki0629/d22b57453b494b70bfa0b0820f0e69b3/raw/config.yaml");
+
+    cmd.assert().success();
+
+    let config_file = temp.child("config.yaml");
+    config_file.assert(include_str!("init_url_config.yaml"));
+
+    temp.close()?;
     Ok(())
 }
 
