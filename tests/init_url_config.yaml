@@ -1,0 +1,23 @@
+---
+dotfiles:
+  windows: "%USERPROFILE%\\dotfiles"
+  mac: "${HOME}/.dotfiles"
+  linux: "${HOME}/.dotfiles"
+deploy:
+  home:
+    windows: "%USERPROFILE%"
+    mac: "${HOME}"
+    linux: "${HOME}"
+  config:
+    windows: "%FOLDERID_RoamingAppData%"
+    mac: "${XDG_CONFIG_HOME}"
+    linux: "${XDG_CONFIG_HOME}"
+  config_local:
+    windows: "%FOLDERID_LocalAppData%"
+    mac: "${XDG_CONFIG_HOME}"
+    linux: "${XDG_CONFIG_HOME}"
+  config_unix:
+    mac: "${XDG_CONFIG_HOME}"
+    linux: "${XDG_CONFIG_HOME}"
+repos:
+  dotfiles: 'https://github.com/mizuki0629/rrcm-test.git'

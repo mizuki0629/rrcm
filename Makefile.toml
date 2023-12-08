@@ -91,3 +91,17 @@ category = "Test"
 command = "cargo"
 args = ["audit"]
 install_crate = "cargo-audit"
+
+[tasks.outdated]
+description = "Check for outdated dependencies."
+category = "Test"
+command = "cargo"
+args = ["outdated"]
+install_crate = "cargo-outdated"
+
+[tasks.update]
+description = "Update dependencies."
+category = "Test"
+command = "cargo"
+args = ["update"]
+install_crate = "cargo-edit"

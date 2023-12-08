@@ -18,6 +18,8 @@ Provides the location of these directories by leveraging the mechanisms defined 
 cargo install rrcm
 # initialize config file
 rrcm init
+# initialize config file from url
+rrcm init <url>
 ```
 
 ## Configuration

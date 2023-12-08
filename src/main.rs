@@ -13,6 +13,8 @@
 //! cargo install rrcm
 //! # initialize config file
 //! rrcm init
+//! # initialize config file from url
+//! rrcm init <url>
 //! ```
 //!
 //! ## Configuration
