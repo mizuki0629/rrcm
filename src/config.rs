@@ -2,9 +2,11 @@ use crate::path::expand_env_var;
 use anyhow::ensure;
 use anyhow::{bail, Ok, Result};
 use indexmap::{indexmap, IndexMap};
+use reqwest;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::path::PathBuf;
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OsPath {
@@ -105,6 +107,20 @@ where
     );
     let config = AppConfig::default();
     confy::store_path(path, &config)?;
+    Ok(())
+}
+
+pub fn download_app_config<P>(path: P, url: Url) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    ensure!(
+        !path.exists(),
+        format!("{} already exists.", path.display())
+    );
+    let res = reqwest::blocking::get(url)?.error_for_status()?;
+    std::fs::write(path, res.bytes()?)?;
     Ok(())
 }
 

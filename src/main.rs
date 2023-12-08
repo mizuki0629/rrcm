@@ -103,6 +103,7 @@ use anyhow::{Ok, Result};
 use clap::{Parser, Subcommand};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use std::path::PathBuf;
+use url::Url;
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -147,7 +148,11 @@ struct LogArgs {
 #[derive(Debug, Subcommand)]
 enum SubCommands {
     /// Initialize configuration file.
-    Init {},
+    Init {
+        /// rrcm file url
+        #[clap(required = false, ignore_case = true)]
+        url: Option<Url>,
+    },
     /// Print deploy status.
     Status {
         /// repository name
@@ -195,8 +200,13 @@ fn main() {
         };
 
         match args.subcommand {
-            SubCommands::Init {} => {
-                rrcm::config::init_app_config(&config)?;
+            SubCommands::Init { url } => {
+                // download config file if url is specified
+                if let Some(url) = url {
+                    rrcm::config::download_app_config(&config, url)?;
+                } else {
+                    rrcm::config::init_app_config(&config)?;
+                }
             }
             SubCommands::Status { ref repo } => {
                 let app_config = rrcm::config::load_app_config(&config)?;
