@@ -3,6 +3,7 @@
 //! This module contains subcommands.
 //! Each subcommand is implemented as a function.
 use crate::config::AppConfig;
+use crate::config::Repository;
 use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
 use ansi_term::Colour::{Fixed, Green, Red, Yellow};
@@ -14,14 +15,15 @@ use std::process::Command;
 
 fn create_deploy_path<'a, P>(
     path: P,
-    app_config: &'a AppConfig,
+    repo: &'a Repository,
 ) -> impl Iterator<Item = Result<(PathBuf, ReadDir, PathBuf)>> + 'a
 where
     P: AsRef<Path> + 'a,
 {
     let path = path.as_ref().to_path_buf();
-    app_config.deploy.iter().map(move |(from_dirname, to)| {
-        let from_path = path.join(PathBuf::from(from_dirname));
+    let repo_path = path.join(&repo.name);
+    repo.deploy.iter().map(move |(from_dirname, to)| {
+        let from_path = repo_path.join(from_dirname);
         let from_readdir = read_dir(&from_path).with_context(|| {
             format!(
                 "Failed to read deploy source directory {:}",
@@ -63,14 +65,14 @@ fn create_deploy_status(
         })
 }
 
-fn deploy_impl<P>(app_config: &AppConfig, path: P, quiet: bool, force: bool) -> Result<()>
+fn deploy_impl<P>(repo: &Repository, path: P, quiet: bool, force: bool) -> Result<()>
 where
     P: AsRef<Path>,
 {
     log::trace!("deploy_impl({:?}, {:?}, {:?})", path.as_ref(), quiet, force);
 
     let path = path.as_ref();
-    let deploy_paths = create_deploy_path(path, app_config)
+    let deploy_paths = create_deploy_path(path, repo)
         .inspect(|r| {
             log::debug!("Deploy path: {:?}", r);
         })
@@ -139,14 +141,14 @@ where
 
 pub fn deploy(
     app_config: &AppConfig,
-    repo: &Option<String>,
+    repo_name: &Option<String>,
     quiet: bool,
     force: bool,
 ) -> Result<()> {
     log::trace!(
         "deploy({:?}, {:?}, {:?}, {:?})",
         app_config,
-        repo,
+        repo_name,
         quiet,
         force
     );
@@ -154,27 +156,27 @@ pub fn deploy(
     app_config
         .repos
         .iter()
-        .filter(|(name, _)| {
+        .filter(|repo| {
             // if repo is specified, skip other repo.
-            if let Some(repo) = repo.as_ref() {
-                name == &repo
+            if let Some(repo_name) = repo_name.as_ref() {
+                repo.name == *repo_name
             } else {
                 true
             }
         })
         .enumerate()
-        .map(|(index, (name, _))| {
-            let path = app_config.to_pathbuf()?.join(name);
+        .map(|(index, repo)| {
+            let path = app_config.to_pathbuf()?;
 
             if !quiet {
                 if index > 0 {
                     println!();
                 }
-                println!("Deploy {:}", name);
+                println!("Deploy {:}", repo.name);
             }
 
             // deploy
-            deploy_impl(app_config, path, quiet, force)?;
+            deploy_impl(repo, path, quiet, force)?;
 
             Ok(())
         })
@@ -186,14 +188,14 @@ pub fn deploy(
     Ok(())
 }
 
-fn undeploy_impl<P>(app_config: &AppConfig, path: P, quiet: bool) -> Result<()>
+fn undeploy_impl<P>(repo: &Repository, path: P, quiet: bool) -> Result<()>
 where
     P: AsRef<Path>,
 {
     log::trace!("undeploy_impl({:?}, {:?})", path.as_ref(), quiet);
 
     let path = path.as_ref();
-    let deploy_paths = create_deploy_path(path, app_config)
+    let deploy_paths = create_deploy_path(path, repo)
         .inspect(|r| {
             log::debug!("Deploy path: {:?}", r);
         })
@@ -234,33 +236,33 @@ where
 /// # Arguments
 /// * `repo` - repo name
 /// * `quiet` - quiet mode
-pub fn undeploy(app_config: &AppConfig, repo: &Option<String>, quiet: bool) -> Result<()> {
-    log::trace!("undeploy({:?}, {:?}, {:?})", app_config, repo, quiet);
+pub fn undeploy(app_config: &AppConfig, repo_name: &Option<String>, quiet: bool) -> Result<()> {
+    log::trace!("undeploy({:?}, {:?}, {:?})", app_config, repo_name, quiet);
 
     app_config
         .repos
         .iter()
-        .filter(|(name, _)| {
+        .filter(|repo| {
             // if repo is specified, skip other repo.
-            if let Some(repo) = repo.as_ref() {
-                name == &repo
+            if let Some(repo_name) = repo_name.as_ref() {
+                repo.name == *repo_name
             } else {
                 true
             }
         })
         .enumerate()
-        .map(|(index, (name, _))| {
-            let path = app_config.to_pathbuf()?.join(name);
+        .map(|(index, repo)| {
+            let path = app_config.to_pathbuf()?;
 
             if !quiet {
                 if index > 0 {
                     println!();
                 }
-                println!("UnDeploy {:}", name);
+                println!("UnDeploy {:}", repo.name);
             }
 
             // undeploy
-            undeploy_impl(app_config, path, quiet)?;
+            undeploy_impl(repo, path, quiet)?;
 
             Ok(())
         })
@@ -311,14 +313,14 @@ where
     Ok(())
 }
 
-fn status_impl<P>(app_config: &AppConfig, path: P) -> Result<()>
+fn status_impl<P>(repo: &Repository, path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
     log::trace!("status_impl({:?})", path.as_ref());
 
     let path = path.as_ref();
-    let deploy_paths = create_deploy_path(path, app_config)
+    let deploy_paths = create_deploy_path(path, repo)
         .inspect(|result| {
             if let Err(e) = result {
                 log::warn!("{:?}", e);
@@ -357,28 +359,32 @@ where
     Ok(())
 }
 
-pub fn status(app_config: &AppConfig, repo: &Option<String>) -> Result<()> {
-    log::trace!("status({:?}, {:?})", app_config, repo);
+pub fn status(app_config: &AppConfig, repo_name: &Option<String>) -> Result<()> {
+    log::trace!("status({:?}, {:?})", app_config, repo_name);
     app_config
         .repos
         .iter()
-        .filter(|(name, _)| {
+        .filter(|repo| {
             // if repo is specified, skip other repo.
-            if let Some(repo) = repo.as_ref() {
-                name == &repo
+            if let Some(repo_name) = repo_name.as_ref() {
+                repo.name == *repo_name
             } else {
                 true
             }
         })
         .enumerate()
-        .map(|(index, (name, url))| {
-            let path = app_config.to_pathbuf()?.join(name);
+        .map(|(index, repo)| {
+            let path = app_config.to_pathbuf()?;
 
             if index > 0 {
                 println!();
             }
-            println!("Repo {:}", name);
-            log::info!("{:} => {:}", url, path.to_string_lossy());
+            println!("Repo {:}", repo.name);
+            log::info!(
+                "{:} => {:}",
+                repo.url,
+                path.join(&repo.name).to_string_lossy()
+            );
 
             // TODO: repo自体のstatusを表示する
             // ディレクトリの存在チェック
@@ -387,7 +393,7 @@ pub fn status(app_config: &AppConfig, repo: &Option<String>) -> Result<()> {
             // gitのbranchを表示する
             // gitのremoteを表示する
             // gitのtagを表示する
-            status_impl(app_config, path)?;
+            status_impl(repo, path)?;
 
             Ok(())
         })
@@ -400,21 +406,17 @@ pub fn status(app_config: &AppConfig, repo: &Option<String>) -> Result<()> {
     Ok(())
 }
 
-fn git_update(
-    app_config: &AppConfig,
-    path: &Path,
-    url: &String,
-    quiet: bool,
-    verbose: bool,
-) -> Result<()> {
-    log::trace!("git_update({:?}, {:?})", app_config, path);
+fn git_update(repo: &Repository, path: &Path, quiet: bool, verbose: bool) -> Result<()> {
+    log::trace!("git_update({:?}, {:?})", repo, path);
+
+    let path = path.join(&repo.name);
 
     // update git repository
     let mut git = Command::new("git");
     if path.exists() {
         git.arg("pull").current_dir(path);
     } else {
-        git.arg("clone").arg(url).arg(path);
+        git.arg("clone").arg(&repo.url).arg(path);
         if verbose {
             git.arg("-v");
         }
@@ -458,7 +460,7 @@ fn git_update(
 /// * `verbose` - verbose mode
 pub fn update(
     app_config: &AppConfig,
-    repo: &Option<String>,
+    repo_name: &Option<String>,
     quiet: bool,
     verbose: bool,
     force: bool,
@@ -466,7 +468,7 @@ pub fn update(
     log::trace!(
         "update({:?}, {:?}, {:?}, {:?}, {:?})",
         app_config,
-        repo,
+        repo_name,
         quiet,
         verbose,
         force
@@ -475,30 +477,34 @@ pub fn update(
     app_config
         .repos
         .iter()
-        .filter(|(name, _)| {
+        .filter(|repo| {
             // if repo is specified, skip other repo.
-            if let Some(repo) = repo.as_ref() {
-                name == &repo
+            if let Some(repo_name) = repo_name.as_ref() {
+                repo.name == *repo_name
             } else {
                 true
             }
         })
         .enumerate()
-        .map(|(index, (name, url))| {
-            let path = app_config.to_pathbuf()?.join(name);
+        .map(|(index, repo)| {
+            let path = app_config.to_pathbuf()?;
 
             if !quiet {
                 if index > 0 {
                     println!();
                 }
-                println!("Update {:}", name);
-                println!("  {:} => {:}", url, path.to_string_lossy());
+                println!("Update {:}", repo.name);
+                println!(
+                    "  {:} => {:}",
+                    repo.url,
+                    path.join(&repo.name).to_string_lossy()
+                );
             }
 
-            git_update(app_config, &path, url, quiet, verbose)?;
+            git_update(repo, &path, quiet, verbose)?;
 
             // deploy
-            deploy_impl(app_config, &path, quiet, force)?;
+            deploy_impl(repo, &path, quiet, force)?;
 
             Ok(())
         })
