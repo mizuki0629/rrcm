@@ -24,7 +24,8 @@ RUN cargo binstall -y \
     cargo-nextest \
     cargo-make \
     cargo-edit \
-    cargo-outdated
+    cargo-outdated \
+    cargo-readme
 
 ENTRYPOINT ["cargo", "make"]
 CMD ["--help"]

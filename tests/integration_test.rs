@@ -9,6 +9,7 @@ use indoc::formatdoc;
 use predicates::prelude::*;
 use rrcm::config::AppConfig;
 use rrcm::config::OsPath;
+use rrcm::config::Repository;
 use rstest::rstest;
 use std::fs;
 use std::fs::OpenOptions;
@@ -30,32 +31,36 @@ fn create_app_config(
         linux: Some(format!("{}/dotfiles", tmpdir)),
     };
 
-    let deploy = indexmap!(
-        String::from("home") => OsPath {
-            windows: Some(format!("{}\\home",tmpdir)),
-            mac: Some(format!("{}/home",tmpdir)),
-            linux: Some(format!("{}/home",tmpdir)),
-        },
-        String::from("config") => OsPath {
-            windows: Some(format!("{}\\config",tmpdir)),
-            mac: Some(format!("{}/config",tmpdir)),
-            linux: Some(format!("{}/config",tmpdir)),
-        },
-        String::from("config_local") => OsPath {
-            windows: Some(format!("{}\\config_local",tmpdir)),
-            mac: Some(format!("{}/config_local",tmpdir)),
-            linux: Some(format!("{}/config_local",tmpdir)),
-        },
-    );
-
     fs::create_dir(temp.path().join("home"))?;
     fs::create_dir(temp.path().join("config"))?;
     fs::create_dir(temp.path().join("config_local"))?;
 
     config_file.write_str(&serde_yaml::to_string(&AppConfig {
         dotfiles,
-        deploy,
-        repos: repos.clone(),
+        repos: repos
+            .iter()
+            .map(|(name, url)| Repository {
+                name: name.clone(),
+                url: url.clone(),
+                deploy: indexmap!(
+                    String::from("home") => OsPath {
+                        windows: Some(format!("{}\\home",tmpdir)),
+                        mac: Some(format!("{}/home",tmpdir)),
+                        linux: Some(format!("{}/home",tmpdir)),
+                    },
+                    String::from("config") => OsPath {
+                        windows: Some(format!("{}\\config",tmpdir)),
+                        mac: Some(format!("{}/config",tmpdir)),
+                        linux: Some(format!("{}/config",tmpdir)),
+                    },
+                    String::from("config_local") => OsPath {
+                        windows: Some(format!("{}\\config_local",tmpdir)),
+                        mac: Some(format!("{}/config_local",tmpdir)),
+                        linux: Some(format!("{}/config_local",tmpdir)),
+                    },
+                ),
+            })
+            .collect(),
     })?)?;
 
     Ok(config_file)
@@ -796,7 +801,7 @@ mod win_need_admin {
         } else {
             cmd.assert()
                 .success()
-                .stdout(predicate::str::contains(&repo_string))
+                .stdout(predicate::str::contains(repo_string))
                 .stderr(predicate::function(|output: &str| {
                     deploy_files.iter().any(|(path, target)| {
                         output.contains(&format!(

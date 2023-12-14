@@ -1,7 +1,7 @@
 use crate::path::expand_env_var;
 use anyhow::ensure;
 use anyhow::{bail, Ok, Result};
-use indexmap::{indexmap, IndexMap};
+use indexmap::IndexMap;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -43,10 +43,16 @@ impl OsPath {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Repository {
+    pub name: String,
+    pub url: String,
+    pub deploy: IndexMap<String, OsPath>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub dotfiles: OsPath,
-    pub deploy: IndexMap<String, OsPath>,
-    pub repos: IndexMap<String, String>,
+    pub repos: Vec<Repository>,
 }
 
 impl Default for AppConfig {
@@ -57,31 +63,8 @@ impl Default for AppConfig {
             linux: Some("${HOME}/.dotfiles".to_string()),
         };
 
-        let deploy = indexmap!(
-            String::from("home") => OsPath {
-                windows: Some("%USERPROFILE%".to_string()),
-                mac: Some("${HOME}".to_string()),
-                linux: Some("${HOME}".to_string()),
-            },
-            String::from("config") => OsPath {
-                windows: Some("%FOLDERID_RoamingAppData%".to_string()),
-                mac: Some("${XDG_CONFIG_HOME}".to_string()),
-                linux: Some("${XDG_CONFIG_HOME}".to_string()),
-            },
-            String::from("config_local") => OsPath {
-                windows: Some("%FOLDERID_LocalAppData%".to_string()),
-                mac: Some("${XDG_CONFIG_HOME}".to_string()),
-                linux: Some("${XDG_CONFIG_HOME}".to_string()),
-            },
-        );
-
-        let repos = IndexMap::new();
-
-        Self {
-            dotfiles,
-            deploy,
-            repos,
-        }
+        let repos = Vec::new();
+        Self { dotfiles, repos }
     }
 }
 
@@ -89,11 +72,6 @@ impl AppConfig {
     pub fn to_pathbuf(&self) -> Result<PathBuf> {
         self.dotfiles.to_pathbuf()
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Repo {
-    pub url: String,
 }
 
 pub fn init_app_config<P>(path: P) -> Result<()>
@@ -146,44 +124,7 @@ mod tests {
         );
         assert_eq!(config.dotfiles.mac, Some("${HOME}/.dotfiles".to_string()));
         assert_eq!(config.dotfiles.linux, Some("${HOME}/.dotfiles".to_string()));
-        assert_eq!(config.deploy.len(), 3);
         assert_eq!(config.repos.len(), 0);
-        assert_eq!(
-            config.deploy.get("home").unwrap().windows,
-            Some("%USERPROFILE%".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("home").unwrap().mac,
-            Some("${HOME}".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("home").unwrap().linux,
-            Some("${HOME}".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("config").unwrap().windows,
-            Some("%FOLDERID_RoamingAppData%".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("config").unwrap().mac,
-            Some("${XDG_CONFIG_HOME}".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("config").unwrap().linux,
-            Some("${XDG_CONFIG_HOME}".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("config_local").unwrap().windows,
-            Some("%FOLDERID_LocalAppData%".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("config_local").unwrap().mac,
-            Some("${XDG_CONFIG_HOME}".to_string())
-        );
-        assert_eq!(
-            config.deploy.get("config_local").unwrap().linux,
-            Some("${XDG_CONFIG_HOME}".to_string())
-        );
     }
 
     #[test]

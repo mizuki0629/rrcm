@@ -27,10 +27,21 @@
 //! The repository is defined in the config.yaml file.
 //! ```yaml
 //! repos:
-//! # your dotfiles repository
-//! # you can define multiple repositories
-//!   example1: 'git@github:example/example1'
-//!   example2: 'git@github:example/example2'
+//!   - name: dotilfes
+//!     url: 'git@github:example/example1'
+//!     deploy:
+//!       home:
+//!         windows: "%USERPROFILE%"
+//!         mac: "${HOME}"
+//!         linux: "${HOME}"
+//!       config:
+//!         windows: "%FOLDERID_RoamingAppData%"
+//!         mac: "${XDG_CONFIG_HOME}"
+//!         linux: "${XDG_CONFIG_HOME}"
+//!       config_local:
+//!         windows: "%FOLDERID_LocalAppData%"
+//!         mac: "${XDG_CONFIG_HOME}"
+//!         linux: "${XDG_CONFIG_HOME}"
 //! ```
 //! the repository is a directory that contains the dotfiles.
 //! Directory structure example:
@@ -58,23 +69,6 @@
 //! **Windows needs to be run as administrator.**
 //!
 //! ### Deployment target
-//! The deployment target is defined in the config.yaml file.
-//! ```yaml
-//! deploy:
-//!   home:
-//!     windows: "%USERPROFILE%"
-//!     mac: "${HOME}"
-//!     linux: "${HOME}"
-//!   config:
-//!     windows: "%FOLDERID_RoamingAppData%"
-//!     mac: "${XDG_CONFIG_HOME}"
-//!     linux: "${XDG_CONFIG_HOME}"
-//!   config_local:
-//!     windows: "%FOLDERID_LocalAppData%"
-//!     mac: "${XDG_CONFIG_HOME}"
-//!     linux: "${XDG_CONFIG_HOME}"
-//! ```
-//!
 //! Environment variables can be used in the deployment target.
 //! Format
 //! - Unix: ${ENVIRONMENT_VARIABLE_NAME}
