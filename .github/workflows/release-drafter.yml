@@ -27,8 +27,8 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.release-drafter.upload_url }}
-      tag_name: ${{ steps.release-drafter.tag_name }}
+      upload_url: ${{ steps.release-drafter.outputs.upload_url }}
+      tag_name: ${{ steps.release-drafter.outputs.tag_name }}
     steps:
       # (Optional) GitHub Enterprise requires GHE_HOST variable set
       #- name: Set GHE_HOST
@@ -58,7 +58,7 @@ jobs:
           - target: x86_64-pc-windows-gnu
             archive: zip
           - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
+            archive: tar.gz
           - target: x86_64-apple-darwin
             archive: zip
     steps:
@@ -80,5 +80,5 @@ jobs:
         with:
           upload_url: ${{ needs.update_release_draft.outputs.upload_url }}
           asset_path: ${{ steps.compile.outputs.BUILT_ARCHIVE }}
-          asset_name: ${{ github.event.repository.name }}_${{ matrix.target }}.${{ matrix.archive }}
+          asset_name: ${{ github.event.repository.name }}_${{ needs.update_release_draft.outputs.tag_name }}_${{ matrix.target }}.${{ matrix.archive }}
           asset_content_type: application/octet-stream
