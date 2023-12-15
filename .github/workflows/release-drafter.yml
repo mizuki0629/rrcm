@@ -78,15 +78,15 @@ jobs:
       - name: rename binary
         shell: bash
         run: |
-          mv target/${{ matrix.job.target }}/release/${{ env.project_name }}{,-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}}
+          mv target/${{ matrix.job.target }}/release/${{ env.PROJECT_NAME }}{,-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}}
 
       - name: archive binary
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: ${{ matrix.job.archive }}'
           directory: target/${{ matrix.job.target }}/release
-          path: ${{ env.project_name }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}
-          filename: ${{ env.project_name }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
+          path: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}
+          filename: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
 
       - name: upload release asset
         uses: actions/upload-release-asset@v1
@@ -94,7 +94,7 @@ jobs:
           github_token: ${{ secrets.github_token }}
         with:
           upload_url: ${{ needs.update_release_draft.outputs.upload_url }}
-          asset_path: target/${{ matrix.job.target }}/release/${{ env.project_name }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-          asset_name: ${{ env.project_name }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
+          asset_path: target/${{ matrix.job.target }}/release/${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
+          asset_name: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
           asset_content_type: application/octet-stream
 
