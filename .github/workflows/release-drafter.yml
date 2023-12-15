@@ -83,7 +83,7 @@ jobs:
       - name: archive binary
         uses: thedoctor0/zip-release@0.7.5
         with:
-          type: ${{ matrix.job.archive }}'
+          type: ${{ matrix.job.archive }}
           directory: target/${{ matrix.job.target }}/release
           path: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}
           filename: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
