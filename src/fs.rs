@@ -3,10 +3,12 @@ use anyhow::anyhow;
 use anyhow::Result;
 use dunce::simplified;
 use path_abs::PathAbs;
-use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use trash::delete;
+
+#[cfg(target_family = "unix")]
+use std::fs;
 
 #[cfg(target_family = "unix")]
 use trash::Error;
