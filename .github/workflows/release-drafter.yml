@@ -33,9 +33,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build:
+    name: release build ${{ matrix.target }}
     permissions:
       contents: write
     runs-on: ${{ matrix.os }}
+    needs: [update_release_draft]
     strategy:
       fail-fast: false
       matrix:
