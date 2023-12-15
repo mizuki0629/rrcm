@@ -106,13 +106,17 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case("${HOME}", format!("{}", std::env::var("HOME").unwrap()))]
-    #[case("${HOME}/.config", format!("{}/.config", std::env::var("HOME").unwrap()))]
-    #[case("${HOME}/.config/${XDG_CONFIG_HOME}", format!("{}/.config/{}/.config", std::env::var("HOME").unwrap(), std::env::var("HOME").unwrap()))]
-    #[case("${HOME}/.config/${XDG_CONFIG_HOME}/foo", format!("{}/.config/{}/.config/foo", std::env::var("HOME").unwrap(), std::env::var("HOME").unwrap()))]
+    #[case("${XDG_CONFIG_HOME}", format!("{}/.config", std::env::var("HOME").unwrap()))]
+    #[case("${XDG_CONFIG_HOME}/.nvim", format!("{}/.config/.nvim", std::env::var("HOME").unwrap()))]
+    #[case("${XDG_CONFIG_HOME}/foo", format!("{}/.config/foo", std::env::var("HOME").unwrap()))]
     fn test_expand_env_var(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = expand_env_var(s)?;
-        assert_eq!(result, expected);
+        if std::env::var("HOME").unwrap() == "/" {
+            // if HOME is /, remove the first /
+            assert_eq!(result, &expected[1..]);
+        } else {
+            assert_eq!(result, expected);
+        }
         Ok(())
     }
 
@@ -151,7 +155,12 @@ mod tests {
     #[case("XDG_STATE_HOME", format!("{}/.local/state", std::env::var("HOME").unwrap()))]
     fn test_get_xdg_default(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = get_xdg_default(s)?;
-        assert_eq!(result, expected);
+        if std::env::var("HOME").unwrap() == "/" {
+            // if HOME is /, remove the first /
+            assert_eq!(result, &expected[1..]);
+        } else {
+            assert_eq!(result, expected);
+        }
         Ok(())
     }
 

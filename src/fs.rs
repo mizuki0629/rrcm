@@ -1,4 +1,5 @@
 //! File system utilities.
+use anyhow::anyhow;
 use anyhow::Result;
 use dunce::simplified;
 use path_abs::PathAbs;
@@ -6,8 +7,11 @@ use std::path::Path;
 use std::path::PathBuf;
 use trash::delete;
 
-#[cfg(target_os = "windows")]
-use anyhow::anyhow;
+#[cfg(target_family = "unix")]
+use std::fs;
+
+#[cfg(target_family = "unix")]
+use trash::Error;
 
 pub fn absolutize<P>(path: P) -> Result<PathBuf>
 where
@@ -49,6 +53,21 @@ pub fn remove<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    delete(path)?;
-    Ok(())
+    #[cfg(target_family = "unix")]
+    {
+        match delete(&path) {
+            Ok(_) => Ok(()),
+            Err(Error::FileSystem { .. }) => {
+                fs::remove_file(&path)?;
+                Ok(())
+            }
+            Err(e) => Err(anyhow!("{}", e)),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        delete(&path)?;
+        Ok(())
+    }
 }
