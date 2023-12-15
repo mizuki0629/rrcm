@@ -14,69 +14,90 @@ Provides the location of these directories by leveraging the mechanisms defined 
 - the [XDG base directory](https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html)  specifications on Linux and macOS
 - the [Known Folder](https://msdn.microsoft.com/en-us/library/windows/desktop/dd378457.aspx) API on Windows
 
-## Installation
-### Cargo
-```sh
-cargo install rrcm
-# initialize config file
-rrcm init
-# initialize config file from url
-rrcm init <url>
+## Direcotry
+The configuration file specifies the mapping between deployment sources and destinations for each platform.
+rrcm creates symbolic links to files and directories directly under the deployment targets in the deployment destination.
 ```
+(dotfiles repository download directory)
+dotiles
+│   (local repositroy)
+├── example1
+│   │   (deploy target)
+│   ├── home
+│   │   │               (symbolic link)
+│   │   ├── .profile <- $HOME/.profile     (on Linux and Mac)
+│   │   │               %PROFILE%\.profile (on Win)
+│   │   ├── .vim     <- $HOME/.vim         (on Linux and Mac)
+│   │   │               %PROFILE%\.vim     (on Win)
+│   │   └── ...
+│   │
+│   └── .config
+│       ├── nvim     <- $HOME/.config/nvim                  (on Linux and Mac),
+│       │               %PROFILE%\AppData\LocalAppData\nvim (on Win)
+│       └── ...
+│
+└── example2 (next local repositroy)
+    └── ...
+```
+Under the deployment target dierctory, files and directorys are deployed by symbolic link.
+**Windows needs to be run as administrator.**
+
 
 ## Configuration
-The configuration file is a yaml file.
 configuration file path:
 - Unix: $HOME/.config/rrcm/config.yaml
 - Win: %PROFILE%\AppData\Roaming\rrcm\config.yaml
-
-### Repository
-The repository is defined in the config.yaml file.
 ```yaml
+---
+# dotfiles repositroy download directory
+dotfiles:
+  windows: "%USERPROFILE%\\dotfiles"
+  mac: "${HOME}/.dotfiles"
+  linux: "${HOME}/.dotfiles"
+
+# repositories. multiple repositories can be specified.
 repos:
-  - name: dotilfes
+
+    # local repository name
+  - name: example1
+
+    # git repository url
     url: 'git@github:example/example1'
+
+    # deploy configuration
     deploy:
+
+      # deploy target
+      # Example: deploy home directory to $HOME or %USERPROFILE%
       home:
+
+        # deploy destination on each OS.
+        # if OS not defined, it will not be deployed.
         windows: "%USERPROFILE%"
         mac: "${HOME}"
         linux: "${HOME}"
-      config:
+
+      # Example: deploy .config directory to XDG_CONFIG_HOME or %USERPROFILE%\AppData\Roaming
+      .config:
         windows: "%FOLDERID_RoamingAppData%"
         mac: "${XDG_CONFIG_HOME}"
         linux: "${XDG_CONFIG_HOME}"
-      config_local:
+
+      # Example: deploy .config-LocalAppData to XDG_CONFIG_HOME or %USERPROFILE%\AppData\Local
+      .config-LocalAppData:
         windows: "%FOLDERID_LocalAppData%"
         mac: "${XDG_CONFIG_HOME}"
         linux: "${XDG_CONFIG_HOME}"
-```
-the repository is a directory that contains the dotfiles.
-Directory structure example:
-```rust
-dotfiles
-├── home
-│   ├── .profile -> $HOME/.profile(Unix)
-│   │              %PROFILE%\.profile(Win)
-│   └── ...
-├── config
-│   ├── nushell  -> $HOME/.config/nushell(Unix),
-│   │               %PROFILE%\AppData\Roaming\nushell(Win)
-│   └── ...
-└── config_local
-    ├── nvim     -> $HOME/.config/nvim(Unix),
-    │               %PROFILE%\AppData\Local\nvim(Win)
-    └── ...
-```
-home, config, config_local are the deployment targets.
-- home: Deploy to $HOME(Unix), %PROFILE%(Win)
-- config: Deploy to $HOME/.config(Unix), %PROFILE%\AppData\Roaming(Win)
-- config_local: Deploy to $HOME/.config/local(Unix), %PROFILE%\AppData\Local(Win)
 
-Under the deployment target, the file or directory is deployed by symbolic link.
-**Windows needs to be run as administrator.**
+    # next repository
+  - name: example2
+    url: 'git@github:example/example2'
+    ...
+```
 
-### Deployment target
-Environment variables can be used in the deployment target.
+### Deployment destination
+Environment variables can be used in deployment destination.
+
 Format
 - Unix: ${ENVIRONMENT_VARIABLE_NAME}
 - Windows: %ENVIRONMENT_VARIABLE_NAME%
@@ -93,12 +114,29 @@ The following special variables are available.
     - %FOLDERID_Documents%
     - %FOLDERID_Desktop%
 
-## Examples
+## Install
+### Cargo
 ```sh
-# update all repositories
-rrcm update
+cargo install rrcm
+```
 
-# show status all repositories
+## Usage
+initialize config file
+```sh
+rrcm init
+# or initialize config file from http
+rrcm init <url>
+```
+I recommend using gist like this.
+[my config.yaml](https://gist.github.com/mizuki0629/1f7e73703b09551610b18392e375bd73)
+
+update(git clone or pull) repositories and deploy
+```sh
+rrcm update
+```
+
+show deploy status
+```sh
 rrcm status
 ```
 
