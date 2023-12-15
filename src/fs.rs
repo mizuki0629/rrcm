@@ -1,4 +1,5 @@
 //! File system utilities.
+use anyhow::anyhow;
 use anyhow::Result;
 use dunce::simplified;
 use path_abs::PathAbs;
@@ -7,8 +8,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use trash::delete;
 
-#[cfg(target_family = "unix")]
-use anyhow::anyhow;
 #[cfg(target_family = "unix")]
 use trash::Error;
 
