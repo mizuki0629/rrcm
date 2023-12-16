@@ -7,10 +7,10 @@ use std::path::Path;
 use std::path::PathBuf;
 use trash::delete;
 
-#[cfg(target_family = "unix")]
+#[cfg(target_os = "linux")]
 use std::fs;
 
-#[cfg(target_family = "unix")]
+#[cfg(target_os = "linux")]
 use trash::Error;
 
 pub fn absolutize<P>(path: P) -> Result<PathBuf>
@@ -53,7 +53,7 @@ pub fn remove<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    #[cfg(target_family = "unix")]
+    #[cfg(target_os = "linux")]
     {
         match delete(&path) {
             Ok(_) => Ok(()),

@@ -6,6 +6,11 @@ NEXTEST_FILTER  = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "al
 
 [tasks.build]
 description = "Build project."
+command = "cargo"
+args = ["build", "${@}"]
+
+[tasks.build-cross]
+description = "Build project."
 install_crate = "cross"
 command = "cross"
 args = ["build", "${@}"]
@@ -19,6 +24,10 @@ args = ["clean"]
 env = { NEXTEST_FILTER = "all()" }
 
 [tasks.test]
+command = "cargo"
+args = ["test", "${@}"]
+
+[tasks.test-cross]
 install_crate = "cross"
 command = "cross"
 args = ["test", "${@}"]
