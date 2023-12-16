@@ -65,7 +65,7 @@ where
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "linux"))]
     {
         delete(&path)?;
         Ok(())
