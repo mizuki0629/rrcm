@@ -24,7 +24,7 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.release-drafter.outputs.upload_url }}
+      name: ${{ steps.release-drafter.outputs.name }}
       tag_name: ${{ steps.release-drafter.outputs.tag_name }}
     steps:
       - uses: release-drafter/release-drafter@v5
@@ -33,67 +33,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           commitish: master
-
-  build:
-    name: build ${{ matrix.job.target }}
-    permissions:
-      contents: write
-    runs-on: ${{ matrix.job.os }}
-    needs: [update_release_draft]
-    strategy:
-      fail-fast: false
-      matrix:
-        job:
-          - { os: ubuntu-latest  , target: x86_64-unknown-linux-gnu       , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: ubuntu-latest  , target: x86_64-unknown-linux-musl      , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: ubuntu-latest  , target: armv7-unknown-linux-gnueabihf  , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: ubuntu-latest  , target: armv7-unknown-linux-musleabihf , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: ubuntu-latest  , target: aarch64-unknown-linux-gnu      , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: ubuntu-latest  , target: aarch64-unknown-linux-musl     , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: macos-latest   , target: x86_64-apple-darwin            , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          # - { os: macos-latest   , target: aarch64-apple-darwin           , extension: ""    , archive: "tar", archive_extension: ".tar.gz" }
-          - { os: windows-latest , target: x86_64-pc-windows-msvc         , extension: ".exe", archive: "zip", archive_extension: ".zip"    }
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # Rustのpackage名を取得して環境変数に入れておく。(後のステップで使用)
-      - name: Extract crate information
-        shell: bash
-        run: |
-          echo "PROJECT_NAME=$(sed -n 's/^name = "\(.*\)"/\1/p' Cargo.toml | head -n1)" >> $GITHUB_ENV
-
-      - name: Set Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-      
-      - uses: taiki-e/install-action@cross
-      - uses: taiki-e/install-action@cargo-make
-
-      - name: Build
-        run: cargo make build --release --target ${{ matrix.job.target }}
-
-      - name: rename binary
-        shell: bash
-        run: |
-          mv target/${{ matrix.job.target }}/release/${{ env.PROJECT_NAME }}{,-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}}
-
-      - name: archive binary
-        uses: thedoctor0/zip-release@0.7.5
-        with:
-          type: ${{ matrix.job.archive }}
-          directory: target/${{ matrix.job.target }}/release
-          path: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}
-          filename: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/${{ matrix.job.target }}/release/${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-          asset_name:  ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-          tag: ${{ needs.update_release_draft.outputs.tag_name }}
-          overwrite: true
-
