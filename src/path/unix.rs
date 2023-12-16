@@ -17,8 +17,6 @@ use std::path::PathBuf;
 /// |----------|---------------|
 /// | XDG_CONFIG_HOME | $HOME/.config |
 /// | XDG_DATA_HOME | $HOME/.local/share |
-/// | XDG_CACHE_HOME | $HOME/.cache |
-/// | XDG_STATE_HOME | $HOME/.local/state |
 fn get_xdg_default(s: &str) -> Result<String> {
     let mut path = PathBuf::new();
     match s {
@@ -27,12 +25,6 @@ fn get_xdg_default(s: &str) -> Result<String> {
         }
         "XDG_DATA_HOME" => {
             path.push(data_dir().unwrap());
-        }
-        "XDG_CACHE_HOME" => {
-            path.push(cache_dir().unwrap());
-        }
-        "XDG_STATE_HOME" => {
-            path.push(state_dir().unwrap());
         }
         _ => bail!("invalid XDG Base Directory: {}", s),
     }
@@ -46,10 +38,7 @@ fn get_xdg_default(s: &str) -> Result<String> {
 /// - XDG_CACHE_HOME
 /// - XDG_STATE_HOME
 fn is_xdg_base_directory(s: &str) -> bool {
-    matches!(
-        s,
-        "XDG_CONFIG_HOME" | "XDG_DATA_HOME" | "XDG_CACHE_HOME" | "XDG_STATE_HOME"
-    )
+    matches!(s, "XDG_CONFIG_HOME" | "XDG_DATA_HOME")
 }
 
 /// Expand environment variable in String
@@ -141,8 +130,8 @@ mod tests {
     #[rstest]
     #[case("XDG_CONFIG_HOME", true)]
     #[case("XDG_DATA_HOME", true)]
-    #[case("XDG_CACHE_HOME", true)]
-    #[case("XDG_STATE_HOME", true)]
+    #[case("XDG_CACHE_HOME", false)]
+    #[case("XDG_STATE_HOME", false)]
     #[case("XDG_CONFIG_HOME2", false)]
     fn test_is_xdg_base_directory(#[case] s: &str, #[case] expected: bool) {
         assert_eq!(is_xdg_base_directory(s), expected);
@@ -151,8 +140,6 @@ mod tests {
     #[rstest]
     #[case("XDG_CONFIG_HOME", format!("{}", config_dir().unwrap().to_string_lossy()))]
     #[case("XDG_DATA_HOME", format!("{}", data_dir().unwrap().to_string_lossy()))]
-    #[case("XDG_CACHE_HOME", format!("{}", cache_dir().unwrap().to_string_lossy()))]
-    #[case("XDG_STATE_HOME", format!("{}", state_dir().unwrap().to_string_lossy()))]
     fn test_get_xdg_default(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = get_xdg_default(s)?;
         if std::env::var("HOME").unwrap() == "/" {
