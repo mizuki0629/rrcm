@@ -76,18 +76,18 @@ description = "Audit dependencies for security vulnerabilities."
 category = "Test"
 command = "cargo"
 args = ["audit"]
-install_crate = "cargo-audit"
+install_script = "cargo binstall -y cargo-audit"
 
 [tasks.outdated]
 description = "Check for outdated dependencies."
 category = "Test"
 command = "cargo"
 args = ["outdated"]
-install_crate = "cargo-outdated"
+install_script = "cargo binstall -y cargo-outdated"
 
 [tasks.update]
 description = "Update dependencies."
 category = "Test"
 command = "cargo"
 args = ["update"]
-install_crate = "cargo-edit"
+install_script = "cargo binstall -y cargo-edit"
