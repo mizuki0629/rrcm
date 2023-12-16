@@ -7,7 +7,7 @@
 //! and different path separator (e.g. C:\Users\username\foo\bar.txt)
 use anyhow::Context as _;
 use anyhow::{bail, Ok, Result};
-use dirs::{cache_dir, config_dir, data_dir, state_dir};
+use dirs::{config_dir, data_dir};
 use std::path::PathBuf;
 
 /// Get default path of XDG Base Directory
