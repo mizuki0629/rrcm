@@ -41,39 +41,26 @@ jobs:
         files: target/codecov.json
         fail_ci_if_error: true
 
-
   test:
-    name: build ${{ matrix.job.target }}
-    permissions:
-      contents: write
+    name: test ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
-    needs: [coverage]
     strategy:
-      fail-fast: false
       matrix:
         job:
-          - { os: ubuntu-latest  , target: x86_64-unknown-linux-gnu       , test: "test"       }
-          - { os: ubuntu-latest  , target: x86_64-unknown-linux-musl      , test: "test-cross" }
-          - { os: ubuntu-latest  , target: armv7-unknown-linux-gnueabihf  , test: "test-cross" }
-          - { os: ubuntu-latest  , target: armv7-unknown-linux-musleabihf , test: "test-cross" }
-          - { os: ubuntu-latest  , target: aarch64-unknown-linux-gnu      , test: "test-cross" }
-          - { os: ubuntu-latest  , target: aarch64-unknown-linux-musl     , test: "test-cross" }
-          - { os: macos-latest   , target: x86_64-apple-darwin            , test: "test"       }
-          - { os: macos-latest   , target: aarch64-apple-darwin           , test: "test"       }
-          - { os: windows-latest , target: x86_64-pc-windows-msvc         , test: "test"       }
+          - { os: ubuntu-latest  , target: x86_64-unknown-linux-gnu       }
+          - { os: ubuntu-latest  , target: x86_64-unknown-linux-musl      }
+          - { os: ubuntu-latest  , target: armv7-unknown-linux-gnueabihf  }
+          - { os: ubuntu-latest  , target: armv7-unknown-linux-musleabihf }
+          - { os: ubuntu-latest  , target: aarch64-unknown-linux-gnu      }
+          - { os: ubuntu-latest  , target: aarch64-unknown-linux-musl     }
+          - { os: macos-latest   , target: x86_64-apple-darwin            }
+          - { os: macos-latest   , target: aarch64-apple-darwin           }
+          - { os: windows-latest , target: x86_64-pc-windows-msvc         }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set Toolchain
-        if: matrix.job.test == 'test'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: ${{ matrix.job.target }}
-
-      - name: Set Toolchain
-        if: matrix.job.test != 'test'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -87,5 +74,6 @@ jobs:
       - name: Install cargo-make
         uses: taiki-e/install-action@cargo-make
 
-      - name: Test
-        run: cargo make ${{ matrix.job.test }} --target ${{ matrix.job.target }}
+      - name: Build
+        run: cargo make test --target ${{ matrix.job.target }}
+
