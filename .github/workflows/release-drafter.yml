@@ -56,7 +56,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       # Rustのpackage名を取得して環境変数に入れておく。(後のステップで使用)
       - name: Extract crate information
@@ -88,13 +88,12 @@ jobs:
           path: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.extension }}
           filename: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
 
-      - name: upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
         with:
-          upload_url: ${{ needs.update_release_draft.outputs.upload_url }}
-          asset_path: target/${{ matrix.job.target }}/release/${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-          asset_name: ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-          asset_content_type: application/octet-stream
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/${{ matrix.job.target }}/release/${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
+          asset_name:  ${{ env.PROJECT_NAME }}-${{ needs.update_release_draft.outputs.tag_name }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
+          tag: ${{ needs.update_release_draft.outputs.tag_name }}
+          overwrite: true
 
