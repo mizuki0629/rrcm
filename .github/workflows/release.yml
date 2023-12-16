@@ -1,4 +1,4 @@
-name: release
+name: Release
 
 on:
   push:
@@ -14,14 +14,14 @@ jobs:
     strategy:
       matrix:
         job:
-          - { os: ubuntu-latest  , target: x86_64-unknown-linux-gnu       }
-          - { os: ubuntu-latest  , target: x86_64-unknown-linux-musl      }
-          - { os: ubuntu-latest  , target: armv7-unknown-linux-gnueabihf  }
-          - { os: ubuntu-latest  , target: armv7-unknown-linux-musleabihf }
-          - { os: ubuntu-latest  , target: aarch64-unknown-linux-gnu      }
-          - { os: ubuntu-latest  , target: aarch64-unknown-linux-musl     }
-          - { os: macos-latest   , target: x86_64-apple-darwin            }
-          - { os: windows-latest , target: x86_64-pc-windows-msvc         }
+          - { os: ubuntu-latest  , target: x86_64-unknown-linux-gnu       , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: ubuntu-latest  , target: x86_64-unknown-linux-musl      , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: ubuntu-latest  , target: armv7-unknown-linux-gnueabihf  , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: ubuntu-latest  , target: armv7-unknown-linux-musleabihf , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: ubuntu-latest  , target: aarch64-unknown-linux-gnu      , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: ubuntu-latest  , target: aarch64-unknown-linux-musl     , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: macos-latest   , target: x86_64-apple-darwin            , extension: ""     , archive: tar ,archive_extension: .tar.gz }
+          - { os: windows-latest , target: x86_64-pc-windows-msvc         , extension: ".exe" , archive: zip ,archive_extension: .zip    }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
