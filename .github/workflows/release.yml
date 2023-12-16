@@ -61,10 +61,6 @@ jobs:
           directory: target/${{ matrix.job.target }}/release
           path: ${{ env.PROJECT_NAME }}-${{ matrix.job.target }}${{ matrix.job.extension }}
           filename: ${{ env.PROJECT_NAME }}-${{ matrix.job.target }}${{ matrix.job.archive_extension }}
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: 
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
