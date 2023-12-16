@@ -66,6 +66,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set Toolchain
+        if: matrix.job.test == 'test'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.job.target }}
+
+      - name: Set Toolchain
+        if: matrix.job.test != 'test'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable

@@ -35,8 +35,6 @@ fn get_xdg_default(s: &str) -> Result<String> {
 /// XDG Base Directory is one of the following:
 /// - XDG_CONFIG_HOME
 /// - XDG_DATA_HOME
-/// - XDG_CACHE_HOME
-/// - XDG_STATE_HOME
 fn is_xdg_base_directory(s: &str) -> bool {
     matches!(s, "XDG_CONFIG_HOME" | "XDG_DATA_HOME")
 }
@@ -100,12 +98,7 @@ mod tests {
     #[case("${XDG_CONFIG_HOME}/foo", format!("{}/foo", config_dir().unwrap().to_string_lossy()))]
     fn test_expand_env_var(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = expand_env_var(s)?;
-        if std::env::var("HOME").unwrap() == "/" {
-            // if HOME is /, remove the first /
-            assert_eq!(result, &expected[1..]);
-        } else {
-            assert_eq!(result, expected);
-        }
+        assert_eq!(result, expected);
         Ok(())
     }
 
@@ -142,12 +135,7 @@ mod tests {
     #[case("XDG_DATA_HOME", format!("{}", data_dir().unwrap().to_string_lossy()))]
     fn test_get_xdg_default(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = get_xdg_default(s)?;
-        if std::env::var("HOME").unwrap() == "/" {
-            // if HOME is /, remove the first /
-            assert_eq!(result, &expected[1..]);
-        } else {
-            assert_eq!(result, expected);
-        }
+        assert_eq!(result, expected);
         Ok(())
     }
 
