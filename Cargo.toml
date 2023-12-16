@@ -41,4 +41,4 @@ indoc = "2.0.4"
 nix = { version = "0.27.1", features = ["user"] }
 
 [badges]
-github = { repository = "mizuki0629/rrcm" , workflow = "Test" }
+github = { repository = "mizuki0629/rrcm", workflow = "Test" }

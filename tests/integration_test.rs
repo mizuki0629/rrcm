@@ -14,6 +14,33 @@ use rstest::rstest;
 use std::fs;
 use std::fs::OpenOptions;
 
+// for cross
+fn find_runner() -> Option<String> {
+    for (key, value) in std::env::vars() {
+        if key.starts_with("CARGO_TARGET_") && key.ends_with("_RUNNER") && !value.is_empty() {
+            return Some(value);
+        }
+    }
+    None
+}
+
+// for cross
+fn get_base_command() -> Command {
+    let mut cmd;
+    let path = assert_cmd::cargo::cargo_bin("rrcm");
+    if let Some(runner) = find_runner() {
+        let mut runner = runner.split_whitespace();
+        cmd = Command::new(runner.next().unwrap());
+        for arg in runner {
+            cmd.arg(arg);
+        }
+        cmd.arg(path);
+    } else {
+        cmd = Command::new(path);
+    }
+    cmd
+}
+
 fn create_temp_dir() -> Result<TempDir> {
     Ok(TempDir::new()?.into_persistent_if(false))
 }
@@ -67,7 +94,7 @@ fn create_app_config(
 }
 
 fn create_cmd_base(quiet: bool, verbose: bool, trace: bool, debug: bool) -> Result<Command> {
-    let mut cmd = Command::cargo_bin("rrcm")?;
+    let mut cmd = get_base_command();
     if quiet {
         cmd.arg("--quiet");
     }
@@ -132,7 +159,7 @@ fn test_log_arg_error(
     #[case] trace: bool,
     #[case] debug: bool,
 ) -> Result<()> {
-    let mut cmd = Command::cargo_bin("rrcm")?;
+    let mut cmd = get_base_command();
     if quiet {
         if is_short {
             cmd.arg("-q");
