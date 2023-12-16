@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: write
     runs-on: ${{ matrix.job.os }}
-    needs: [update_release_draft]
+    needs: [coverage]
     strategy:
       fail-fast: false
       matrix:
