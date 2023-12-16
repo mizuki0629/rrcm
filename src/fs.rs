@@ -1,11 +1,13 @@
 //! File system utilities.
-use anyhow::anyhow;
 use anyhow::Result;
 use dunce::simplified;
 use path_abs::PathAbs;
 use std::path::Path;
 use std::path::PathBuf;
 use trash::delete;
+
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+use anyhow::anyhow;
 
 #[cfg(target_os = "linux")]
 use std::fs;
