@@ -106,9 +106,9 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case("${XDG_CONFIG_HOME}", format!("{}/.config", std::env::var("HOME").unwrap()))]
-    #[case("${XDG_CONFIG_HOME}/.nvim", format!("{}/.config/.nvim", std::env::var("HOME").unwrap()))]
-    #[case("${XDG_CONFIG_HOME}/foo", format!("{}/.config/foo", std::env::var("HOME").unwrap()))]
+    #[case("${XDG_CONFIG_HOME}", format!("{}", config_dir().unwrap().to_string_lossy()))]
+    #[case("${XDG_CONFIG_HOME}/.nvim", format!("{}/.nvim", config_dir().unwrap().to_string_lossy()))]
+    #[case("${XDG_CONFIG_HOME}/foo", format!("{}/foo", config_dir().unwrap().to_string_lossy()))]
     fn test_expand_env_var(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = expand_env_var(s)?;
         if std::env::var("HOME").unwrap() == "/" {
@@ -149,10 +149,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case("XDG_CONFIG_HOME", format!("{}/.config", std::env::var("HOME").unwrap()))]
-    #[case("XDG_DATA_HOME", format!("{}/.local/share", std::env::var("HOME").unwrap()))]
-    #[case("XDG_CACHE_HOME", format!("{}/.cache", std::env::var("HOME").unwrap()))]
-    #[case("XDG_STATE_HOME", format!("{}/.local/state", std::env::var("HOME").unwrap()))]
+    #[case("XDG_CONFIG_HOME", format!("{}", config_dir().unwrap().to_string_lossy()))]
+    #[case("XDG_DATA_HOME", format!("{}", data_dir().unwrap().to_string_lossy()))]
+    #[case("XDG_CACHE_HOME", format!("{}", cache_dir().unwrap().to_string_lossy()))]
+    #[case("XDG_STATE_HOME", format!("{}", state_dir().unwrap().to_string_lossy()))]
     fn test_get_xdg_default(#[case] s: &str, #[case] expected: String) -> Result<()> {
         let result = get_xdg_default(s)?;
         if std::env::var("HOME").unwrap() == "/" {
