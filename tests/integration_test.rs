@@ -814,7 +814,7 @@ mod win_need_admin {
         let mut cmd = create_cmd(&config_file, "update", &repo, quiet, verbose, trace, debug)?;
         if quiet {
             cmd.assert()
-                .success()
+                .failure()
                 .stdout("")
                 .stderr(predicate::function(|output: &str| {
                     deploy_files.iter().any(|(path, target)| {
@@ -827,7 +827,7 @@ mod win_need_admin {
                 }));
         } else {
             cmd.assert()
-                .success()
+                .failure()
                 .stdout(predicate::str::contains(repo_string))
                 .stderr(predicate::function(|output: &str| {
                     deploy_files.iter().any(|(path, target)| {
