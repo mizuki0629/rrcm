@@ -83,6 +83,11 @@ where
         !path.exists(),
         format!("{} already exists.", path.display())
     );
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
     let config = AppConfig::default();
     confy::store_path(path, &config)?;
     Ok(())
@@ -98,6 +103,11 @@ where
         format!("{} already exists.", path.display())
     );
     let res = reqwest::blocking::get(url)?.error_for_status()?;
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
     std::fs::write(path, res.bytes()?)?;
     Ok(())
 }
