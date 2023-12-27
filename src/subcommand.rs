@@ -508,10 +508,10 @@ pub fn update(
 
             Ok(())
         })
-        .for_each(|result| {
-            if let Err(e) = result {
-                log::error!("{:?}", e);
-            }
-        });
+        .inspect(|r| {
+            log::debug!("Update result: {:?}", r);
+        })
+        .collect::<Result<Vec<_>>>()?;
+
     Ok(())
 }
