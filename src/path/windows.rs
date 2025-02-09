@@ -14,6 +14,7 @@ use std::path::PathBuf;
 /// - FOLDERID_Documents
 /// - FOLDERID_LocalAppData
 /// - FOLDERID_RoamingAppData
+///
 /// https://docs.microsoft.com/ja-jp/windows/win32/shell/knownfolderid
 fn get_known_folder(s: &str) -> Result<String> {
     let mut path = PathBuf::new();
@@ -41,6 +42,7 @@ fn get_known_folder(s: &str) -> Result<String> {
 /// - FOLDERID_Documents
 /// - FOLDERID_LocalAppData
 /// - FOLDERID_RoamingAppData
+///
 /// https://docs.microsoft.com/ja-jp/windows/win32/shell/knownfolderid
 fn is_known_folder_id(s: &str) -> bool {
     matches!(
