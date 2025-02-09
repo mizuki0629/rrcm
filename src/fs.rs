@@ -4,7 +4,14 @@ use dunce::simplified;
 use path_abs::PathAbs;
 use std::path::Path;
 use std::path::PathBuf;
-use trash::delete;
+
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "macos")] {
+        use trash::macos::TrashContextExtMacos;
+    } else {
+        use trash::delete;
+    }
+}
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use anyhow::anyhow;
