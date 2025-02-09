@@ -1,6 +1,6 @@
 [package]
 name = "rrcm"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 license-file = "LICENSE"
 description = "Rust RC file Management commands"
@@ -10,35 +10,36 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.75"
-clap = { version = "4.4.7", features = ["derive"] }
-dirs = "5.0.1"
-itertools = "0.11.0"
+anyhow = "1.0.95"
+clap = { version = "4.5.28", features = ["derive"] }
+dirs = "6.0.0"
+itertools = "0.14.0"
 path_abs = "0.5.1"
-trash = "3.1.2"
-dunce = "1.0.4"
-confy = { version = "0.5.1", features = ["yaml_conf"], default-features = false }
+trash = "5.2.1"
+dunce = "1.0.5"
+confy = { version = "0.6.1", features = ["yaml_conf"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 maplit = "1.0.2"
-dirs-sys = "0.4.1"
-log = "0.4.20"
-simplelog = "0.12.1"
-ansi_term = "0.12.1"
-serde_yaml = "0.9"
-indexmap = { version = "2.1.0", features = ["serde"] }
-url = "2.5.0"
-reqwest = { version = "0.11.22", default-features = false, features = ["blocking", "rustls-tls"] }
+dirs-sys = "0.5.0"
+log = "0.4.25"
+simplelog = "0.12.2"
+nu-ansi-term = "0.50.1"
+indexmap = { version = "2.7.1", features = ["serde"] }
+url = "2.5.4"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 
 [dev-dependencies]
-rstest = "0.18.2"
-assert_cmd = "2.0.12"
-assert_fs = "1.0.13"
-pretty_assertions = "1.4.0"
-predicates = "3.0.4"
-indoc = "2.0.4"
+rstest = "0.24.0"
+assert_cmd = "2.0.16"
+assert_fs = "1.1.2"
+pretty_assertions = "1.4.1"
+predicates = "3.1.3"
+indoc = "2.0.5"
+serde_yml = "0.0.12"
+ansi_term = "0.12.1"
 
 [target.'cfg(unix)'.dev-dependencies]
-nix = { version = "0.27.1", features = ["user"] }
+nix = { version = "0.29.0", features = ["user"] }
 
 [badges]
 github = { repository = "mizuki0629/rrcm", workflow = "Test" }

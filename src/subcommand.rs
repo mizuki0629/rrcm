@@ -6,7 +6,7 @@ use crate::config::AppConfig;
 use crate::config::Repository;
 use crate::deploy_status::{get_status, DeployStatus};
 use crate::fs;
-use ansi_term::Colour::{Fixed, Green, Red, Yellow};
+use nu_ansi_term::Color::{Fixed, Green, Red, Yellow};
 use anyhow::{bail, Context as _, Ok, Result};
 use itertools::Itertools;
 use std::fs::{read_dir, ReadDir};
