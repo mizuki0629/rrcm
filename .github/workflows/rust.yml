@@ -63,14 +63,13 @@ jobs:
       - name: Rust Cache 
         uses: Swatinem/rust-cache@v2
 
-      - name: Install cross
-        uses: taiki-e/install-action@cross
-
-      - name: Install cargo-make
-        uses: taiki-e/install-action@cargo-make
+      - name: Install cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
 
       - name: Test
-        run: cargo make test --target ${{ matrix.job.target }}
+        run: cargo test
 
   coverage:
     needs: [test]
