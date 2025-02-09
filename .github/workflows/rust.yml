@@ -96,8 +96,9 @@ jobs:
       run: cargo make coverage
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
-        files: target/codecov.json
+        file: target/codecov.json
+        token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: true
 
