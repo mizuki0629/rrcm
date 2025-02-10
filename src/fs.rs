@@ -4,7 +4,14 @@ use dunce::simplified;
 use path_abs::PathAbs;
 use std::path::Path;
 use std::path::PathBuf;
-use trash::delete;
+
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "macos")] {
+        use trash::macos::TrashContextExtMacos;
+    } else {
+        use trash::delete;
+    }
+}
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use anyhow::anyhow;
@@ -55,21 +62,24 @@ pub fn remove<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    #[cfg(target_os = "linux")]
-    {
-        match delete(&path) {
-            Ok(_) => Ok(()),
-            Err(Error::FileSystem { .. }) => {
-                fs::remove_file(&path)?;
-                Ok(())
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "linux")] {
+            match delete(&path) {
+                Ok(_) => Ok(()),
+                Err(Error::FileSystem { .. }) => {
+                    fs::remove_file(&path)?;
+                    Ok(())
+                }
+                Err(e) => Err(anyhow!("{}", e)),
             }
-            Err(e) => Err(anyhow!("{}", e)),
+        } else if #[cfg(target_os = "macos")] {
+            let mut trash_ctx = trash::TrashContext::default();
+            trash_ctx.set_delete_method(trash::macos::DeleteMethod::NsFileManager);
+            trash_ctx.delete(&path)?;
+            Ok(())
+        } else {
+            delete(&path)?;
+            Ok(())
         }
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        delete(&path)?;
-        Ok(())
     }
 }

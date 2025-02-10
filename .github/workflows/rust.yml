@@ -38,7 +38,7 @@ jobs:
 
   test:
     needs: [lint]
-    name: test ${{ matrix.job.target }}
+    name: test (${{ matrix.job.target }})
     runs-on: ${{ matrix.job.os }}
     strategy:
       matrix:
@@ -63,14 +63,13 @@ jobs:
       - name: Rust Cache 
         uses: Swatinem/rust-cache@v2
 
-      - name: Install cross
-        uses: taiki-e/install-action@cross
-
-      - name: Install cargo-make
-        uses: taiki-e/install-action@cargo-make
+      - name: Install cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.job.target }}
 
       - name: Test
-        run: cargo make test --target ${{ matrix.job.target }}
+        run: cargo test
 
   coverage:
     needs: [test]
@@ -97,8 +96,9 @@ jobs:
       run: cargo make coverage
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
-        files: target/codecov.json
+        file: target/codecov.json
+        token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: true
 

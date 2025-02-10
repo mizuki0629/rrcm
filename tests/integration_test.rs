@@ -62,7 +62,7 @@ fn create_app_config(
     fs::create_dir(temp.path().join("config"))?;
     fs::create_dir(temp.path().join("config_local"))?;
 
-    config_file.write_str(&serde_yaml::to_string(&AppConfig {
+    config_file.write_str(&serde_yml::to_string(&AppConfig {
         dotfiles,
         repos: repos
             .iter()

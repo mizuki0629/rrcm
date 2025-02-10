@@ -4,10 +4,14 @@ skip_core_tasks = true
 [env]
 NEXTEST_FILTER  = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "all()", mapping = {"windows" = "not test(/win_need_admin/)" } }
 
-[tasks.build]
+[tasks.cross-build]
 description = "Build project."
 install_crate = "cross"
 command = "cross"
+args = ["build", "${@}"]
+
+[tasks.build]
+command = "cargo"
 args = ["build", "${@}"]
 
 [tasks.clean]
@@ -18,9 +22,13 @@ args = ["clean"]
 [tasks.set-nextest-filter-all]
 env = { NEXTEST_FILTER = "all()" }
 
-[tasks.test]
+[tasks.cross-test]
 install_crate = "cross"
 command = "cross"
+args = ["test", "${@}"]
+
+[tasks.test]
+command = "cargo"
 args = ["test", "${@}"]
 
 [tasks.readme]
