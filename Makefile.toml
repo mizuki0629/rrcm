@@ -93,9 +93,9 @@ command = "cargo"
 args = ["outdated"]
 install_script = "cargo binstall -y cargo-outdated"
 
-[tasks.update]
+[tasks.upgrade]
 description = "Update dependencies."
 category = "Test"
 command = "cargo"
-args = ["update"]
+args = ["upgrade"]
 install_script = "cargo binstall -y cargo-edit"
