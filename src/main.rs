@@ -97,14 +97,14 @@
 //!
 //! The following special variables are available.
 //! - Unix [XDG base directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)
-//!     if the environment variable is not set, the default value is used.
-//!     - ${XDG_CONFIG_HOME}
-//!     - ${XDG_DATA_HOME}
+//!   if the environment variable is not set, the default value is used.
+//!   - ${XDG_CONFIG_HOME}
+//!   - ${XDG_DATA_HOME}
 //! - Windows [Known Folder ID](https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid)
-//!     - %FOLDERID_RoamingAppData%
-//!     - %FOLDERID_LocalAppData%
-//!     - %FOLDERID_Documents%
-//!     - %FOLDERID_Desktop%
+//!   - %FOLDERID_RoamingAppData%
+//!   - %FOLDERID_LocalAppData%
+//!   - %FOLDERID_Documents%
+//!   - %FOLDERID_Desktop%
 //!
 //! ## Install
 //! ### Cargo
